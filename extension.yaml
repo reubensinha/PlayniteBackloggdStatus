@@ -1,0 +1,7 @@
+﻿Id: BackloggdStatus_228e1135-a326-4a8d-8ee9-edc1c61c0982
+Name: Generic Plugin
+Author: John Doe
+Version: 1.0
+Module: BackloggdStatus.dll
+Type: GenericPlugin
+Icon: icon.png
