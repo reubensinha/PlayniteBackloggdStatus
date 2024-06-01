@@ -19,6 +19,8 @@ namespace BackloggdStatus
 
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
 
+        private const bool Debug = true;
+
         public BackloggdStatus(IPlayniteAPI api) : base(api)
         {
             settings = new BackloggdStatusSettingsViewModel(this);
@@ -27,11 +29,29 @@ namespace BackloggdStatus
                 HasSettings = true
             };
 
+            // TODO Login to Backloggd using webview
+
             logger.Info("BackloggdStatus Initialized");
 
-            
+            var games = PlayniteApi.Database.Games;
+
+            foreach (var game in games)
+            {
+                string backloggdStatus = GetBackloggdStatus(game.Name, out bool exists);
+                if (exists)
+                {
+                    SetPlayniteStatus(game, backloggdStatus);
+                }
+                else
+                {
+                    SetBackloggdStatus(game, backloggdStatuses[game.CompletionStatus.Name]);
+                }
+            }
+
+
         }
 
+        // TODO: Make Dictionaries configurable in settings.
         private readonly Dictionary<string, string> backloggdStatuses = new Dictionary<string, string>
         {
             { "Abandoned", "Abandoned" },
@@ -52,48 +72,40 @@ namespace BackloggdStatus
             { "Playing", "Playing" },
             { "Played", "Played" },
             { "Shelved", "On Hold" },
-            { "Wishlist", "Not Played"}
+            { "Wishlist", "Not Played" }
         };
 
         public override void OnGameInstalled(OnGameInstalledEventArgs args)
         {
             // Add code to be executed when game is finished installing.
+            // TODO: If not in Backloggd library, set to status to Backlog
         }
 
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             // Add code to be executed when Playnite is initialized.
 
-            var games = PlayniteApi.Database.Games;
-
-            foreach (var game in games)
-            {
-                string  backloggdStatus = GetBackloggdStatus(game.Name, out bool exists);
-                if (exists)
-                {
-                    SetPlayniteStatus(game, backloggdStatus);
-                }
-                else
-                {
-                    SetBackloggdStatus(game, backloggdStatuses[game.CompletionStatus.Name]);
-                }
-            }
         }
 
         public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
         {
             // Add code to be executed when library is updated.
+            // TODO: Find updated Playnite statuses and update backloggd statuses
         }
 
         private void SetPlayniteStatus(Game game, string backloggdStatus)
         {
-            // TODO: Implement this method
             if (game.CompletionStatus.Name != "Completed")
             {
-                game.CompletionStatus.Name = playniteStatuses[backloggdStatus];
+                var compStat = PlayniteApi.Database.CompletionStatuses.First(status => status.Name.Equals(playniteStatuses[backloggdStatus]));
+                game.CompletionStatusId = compStat.Id;
+                PlayniteApi.Database.Games.Update(game);
             }
 
-            throw new NotImplementedException();
+            if (Debug)
+            {
+                logger.Debug($"Game: {game.Name} - Playnite Status Set to: {game.CompletionStatus.Name}");
+            }
         }
 
         private string GetBackloggdStatus(string gameName, out bool exists)
