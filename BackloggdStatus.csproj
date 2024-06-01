@@ -45,6 +45,7 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BackloggdLibrary.cs" />
     <Compile Include="BackloggdStatus.cs" />
     <Compile Include="BackloggdStatusSettings.cs" />
     <Compile Include="BackloggdStatusSettingsView.xaml.cs">
