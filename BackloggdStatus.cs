@@ -4,52 +4,25 @@ using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics.Eventing.Reader;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;   
 using System.Windows.Controls;
 
+
 namespace BackloggdStatus
 {
+    // ReSharper disable once ClassNeverInstantiated.Global
     public class BackloggdStatus : GenericPlugin
     {
         private static readonly ILogger logger = LogManager.GetLogger();
-
         private BackloggdStatusSettingsViewModel settings { get; set; }
-
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
 
-        private const bool Debug = true;
-
-        public BackloggdStatus(IPlayniteAPI api) : base(api)
-        {
-            settings = new BackloggdStatusSettingsViewModel(this);
-            Properties = new GenericPluginProperties
-            {
-                HasSettings = true
-            };
-
-            // TODO Login to Backloggd using webview
-
-            logger.Info("BackloggdStatus Initialized");
-
-            var games = PlayniteApi.Database.Games;
-
-            foreach (var game in games)
-            {
-                string backloggdStatus = GetBackloggdStatus(game.Name, out bool exists);
-                if (exists)
-                {
-                    SetPlayniteStatus(game, backloggdStatus);
-                }
-                else
-                {
-                    SetBackloggdStatus(game, backloggdStatuses[game.CompletionStatus.Name]);
-                }
-            }
-
-
-        }
+        private const bool debug = true;
 
         // TODO: Make Dictionaries configurable in settings.
         private readonly Dictionary<string, string> backloggdStatuses = new Dictionary<string, string>
@@ -75,15 +48,95 @@ namespace BackloggdStatus
             { "Wishlist", "Not Played" }
         };
 
+        private BackloggdClient backloggdClient;
+
+        public BackloggdStatus(IPlayniteAPI api) : base(api)
+        {
+            settings = new BackloggdStatusSettingsViewModel(this);
+            Properties = new GenericPluginProperties
+            {
+                HasSettings = true
+            };
+
+            logger.Info("BackloggdStatus Initialized");
+
+
+            backloggdClient = new BackloggdClient(api, logger);
+
+            if (debug)
+            {
+                backloggdClient.DeleteCookies();
+            }
+
+
+
+
+            // var games = PlayniteApi.Database.Games;
+            //
+            // foreach (var game in games)
+            // {
+            //     string backloggdStatus = GetBackloggdStatus(game.Name, out bool exists);
+            //     if (exists)
+            //     {
+            //         SetPlayniteStatus(game, backloggdStatus);
+            //     }
+            //     else
+            //     {
+            //         SetBackloggdStatus(game, backloggdStatuses[game.CompletionStatus.Name]);
+            //     }
+            // }
+
+
+        }
+
+
+        // To add new main menu items override GetMainMenuItems
+        public override IEnumerable<MainMenuItem> GetMainMenuItems(GetMainMenuItemsArgs args)
+        {
+            if (!backloggdClient.loggedIn)
+            {
+                yield return new MainMenuItem
+                {
+                    // Added into "Extensions -> BackloggdStatus" menu
+                    MenuSection = "@BackloggdStatus",
+                    Description = "Log In",
+                    Action = (arg1) => backloggdClient.Login()
+                };
+            }
+            else
+            {
+                // TODO remove this when login is implemented
+                yield return new MainMenuItem
+                {
+                    // Added into "Extensions -> BackloggdStatus" menu
+                    MenuSection = "@BackloggdStatus",
+                    Description = "Logged In",
+                    Action = (arg1) => backloggdClient.Login()
+                };
+            }
+
+            // TODO: Add setting window action
+            yield return new MainMenuItem
+            {
+                // Added into "Extensions -> BackloggdStatus" menu
+                MenuSection = "@BackloggdStatus",
+                Description = "Configure Status Equivalency",
+                Action = (args1) => throw new NotImplementedException()
+            };
+        }
+
+
+
         public override void OnGameInstalled(OnGameInstalledEventArgs args)
         {
             // Add code to be executed when game is finished installing.
-            // TODO: If not in Backloggd library, set to status to Backlog
+            // TODO: If not in Backloggd library, set Backloggd status to Backlog
         }
 
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             // Add code to be executed when Playnite is initialized.
+            // Todo check if user is logged in to Backloggd and restore any saved data
 
         }
 
@@ -102,7 +155,7 @@ namespace BackloggdStatus
                 PlayniteApi.Database.Games.Update(game);
             }
 
-            if (Debug)
+            if (debug)
             {
                 logger.Debug($"Game: {game.Name} - Playnite Status Set to: {game.CompletionStatus.Name}");
             }
