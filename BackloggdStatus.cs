@@ -23,6 +23,7 @@ namespace BackloggdStatus
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
 
         private const bool debug = true;
+        private const bool verbose = true;
 
         // TODO: Make Dictionaries configurable in settings.
         private readonly Dictionary<string, string> backloggdStatuses = new Dictionary<string, string>
@@ -52,6 +53,11 @@ namespace BackloggdStatus
 
         public BackloggdStatus(IPlayniteAPI api) : base(api)
         {
+            if (verbose)
+            {
+                logger.Trace("BackloggdStatus Constructor Called");
+            }
+
             settings = new BackloggdStatusSettingsViewModel(this);
             Properties = new GenericPluginProperties
             {
@@ -67,6 +73,9 @@ namespace BackloggdStatus
             {
                 backloggdClient.DeleteCookies();
             }
+
+            backloggdClient.CheckLogin();
+
 
 
 
@@ -93,36 +102,47 @@ namespace BackloggdStatus
         // To add new main menu items override GetMainMenuItems
         public override IEnumerable<MainMenuItem> GetMainMenuItems(GetMainMenuItemsArgs args)
         {
-            if (!backloggdClient.loggedIn)
+            if (verbose)
             {
-                yield return new MainMenuItem
-                {
-                    // Added into "Extensions -> BackloggdStatus" menu
-                    MenuSection = "@BackloggdStatus",
-                    Description = "Log In",
-                    Action = (arg1) => backloggdClient.Login()
-                };
+                logger.Trace("GetMainMenuItems Called");
             }
-            else
+            
+            yield return new MainMenuItem
             {
-                // TODO remove this when login is implemented
-                yield return new MainMenuItem
-                {
-                    // Added into "Extensions -> BackloggdStatus" menu
-                    MenuSection = "@BackloggdStatus",
-                    Description = "Logged In",
-                    Action = (arg1) => backloggdClient.Login()
-                };
-            }
+                // Added into "Extensions -> BackloggdStatus" menu
+                MenuSection = "@BackloggdStatus",
+                Description = "Sign In",
+                Action = (arg1) => backloggdClient.Login()
+            };
+            
 
             // TODO: Add setting window action
             yield return new MainMenuItem
             {
                 // Added into "Extensions -> BackloggdStatus" menu
                 MenuSection = "@BackloggdStatus",
-                Description = "Configure Status Equivalency",
+                Description = "Configure Status",
                 Action = (args1) => throw new NotImplementedException()
             };
+
+            if (debug)
+            {
+                yield return new MainMenuItem
+                {
+                    // Added into "Extensions -> BackloggdStatus" menu
+                    MenuSection = "@BackloggdStatus",
+                    Description = "Open WebView",
+                    Action = (args1) => backloggdClient.OpenWebView()
+                };
+
+                yield return new MainMenuItem
+                {
+                    // Added into "Extensions -> BackloggdStatus" menu
+                    MenuSection = "@BackloggdStatus",
+                    Description = "Sign Out",
+                    Action = (arg1) => backloggdClient.Logout()
+                };
+            }
         }
 
 
