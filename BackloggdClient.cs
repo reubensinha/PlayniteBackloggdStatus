@@ -62,11 +62,8 @@ namespace BackloggdStatus
             }
 
             logger.Info("Opening webView");
-            // var webView = playniteApi.WebViews.CreateView(width, height);
-            // webView.Navigate("https://www.backloggd.com");
-            // webView.OpenDialog();
-            // webView.Close();
-            // webView.Dispose();
+            CheckLogin();
+
         }
 
         public void Login()
@@ -87,16 +84,6 @@ namespace BackloggdStatus
 
             CheckLogin();
 
-            // var webView = playniteApi.WebViews.CreateView(width, height);
-            // webView.Navigate("https://www.backloggd.com/users/sign_in");
-            // AcceptCookies(webView);
-            // webView.OpenDialog();
-            //
-            // logger.Info("Navigating to Backloggd Login");
-            // CheckLogin(webView);
-            //
-            // webView.Close();
-            // webView.Dispose();
         }
 
         public void Logout()
@@ -141,7 +128,6 @@ namespace BackloggdStatus
 
         public void CheckLogin()
         {
-            // TODO Test this
             if (verbose)
             {
                 logger.Trace("Public CheckLogin method called");
@@ -155,17 +141,8 @@ namespace BackloggdStatus
             }
 
             // Refresh Main Menu
-            playniteApi.Database.BeginBufferUpdate();
-            playniteApi.Database.EndBufferUpdate();
-
-
-
-            // var webView = playniteApi.WebViews.CreateView(width, height);
-            // if (verbose)
-            // {
-            //     logger.Trace("CheckLogin webView created");
-            // }
-
+            // playniteApi.Database.BeginBufferUpdate();
+            // playniteApi.Database.EndBufferUpdate();
 
         }
 
@@ -188,10 +165,8 @@ namespace BackloggdStatus
                 if (!e.IsLoading && !eventHandled)
                 {
                     eventHandled = true;
-                    // webView.LoadingChanged -= loadingChangedHandler;
                     // This Menu is the sign-out box which only appears when user is logged in.
                     string script = "document.querySelector('#mobile-user-nav > div:nth-child(3) > a');";
-                    // string script = "'test';";
                     logger.Debug("In webView.LoadingChanged - CheckLogin method");
 
                     try
