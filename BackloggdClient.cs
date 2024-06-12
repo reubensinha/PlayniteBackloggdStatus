@@ -16,23 +16,30 @@ namespace BackloggdStatus
 {
     public class BackloggdClient
     {
-        private IPlayniteAPI playniteApi;
-        private ILogger logger;
+        private readonly IPlayniteAPI playniteApi;
+        private readonly ILogger logger;
 
 
-        internal bool loggedIn { get; private set; }
+        private bool loggedIn { get; set; }
         private const bool verbose = true;
 
         private const int width = 880;
         private const int height = 530;
 
+        /// <summary>
+        /// Client for interacting with Backloggd.com webpage.
+        /// </summary>
+        /// <param name="api">Playnite API object</param>
+        /// <param name="logger">Playnite logger object</param>
         public BackloggdClient(IPlayniteAPI api, ILogger logger)
         {
             playniteApi = api;
             this.logger = logger;
         }
 
-
+        /// <summary>
+        /// Deletes all cookies from Backloggd.com
+        /// </summary>
         public void DeleteCookies()
         {
             if (verbose)
@@ -48,6 +55,9 @@ namespace BackloggdStatus
             }
         }
 
+        /// <summary>
+        /// Opens a WebView to Backloggd.com
+        /// </summary>
         public void OpenWebView()
         {
             if (verbose)
@@ -66,6 +76,9 @@ namespace BackloggdStatus
 
         }
 
+        /// <summary>
+        /// Opens the Backloggd.com login page and stores login cookies.
+        /// </summary>
         public void Login()
         {
             if (verbose)
@@ -86,13 +99,19 @@ namespace BackloggdStatus
 
         }
 
+        /// <summary>
+        /// Logs out of Backloggd.com by deleting cookies.
+        /// </summary>
         public void Logout()
         {
-            // TODO: Test this
             DeleteCookies();
             CheckLogin();
         }
 
+        /// <summary>
+        /// Clicks Accept Cookies on Backloggd.com
+        /// </summary>
+        /// <param name="webView">webView open to Backloggd.com</param>
         private void AcceptCookies(IWebView webView)
         {
             if (verbose)
@@ -126,6 +145,9 @@ namespace BackloggdStatus
             };
         }
 
+        /// <summary>
+        /// Checks if user is logged in to Backloggd.com
+        /// </summary>
         public void CheckLogin()
         {
             if (verbose)

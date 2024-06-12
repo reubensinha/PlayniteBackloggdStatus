@@ -19,6 +19,7 @@ namespace BackloggdStatus
     public class BackloggdStatus : GenericPlugin
     {
         private static readonly ILogger logger = LogManager.GetLogger();
+
         private BackloggdStatusSettingsViewModel settings { get; set; }
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
 
@@ -49,7 +50,7 @@ namespace BackloggdStatus
             { "Wishlist", "Not Played" }
         };
 
-        private BackloggdClient backloggdClient;
+        private readonly BackloggdClient backloggdClient;
 
         public BackloggdStatus(IPlayniteAPI api) : base(api)
         {
@@ -165,6 +166,7 @@ namespace BackloggdStatus
             // Add code to be executed when library is updated.
             // TODO: Find updated Playnite statuses and update backloggd statuses
         }
+
 
         private void SetPlayniteStatus(Game game, string backloggdStatus)
         {
