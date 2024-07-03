@@ -10,5 +10,18 @@
         <TextBox Text="{Binding Settings.Option1}"/>
         <TextBlock Text="Description for Option2:"/>
         <CheckBox IsChecked="{Binding Settings.Option2}"/>
+
+        <TextBlock Text="List of Games" />
+
+        <ListBox Name="GameList" 
+                 ItemsSource="{Binding Settings.Games}"
+                 MaxHeight="400">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Name}"></TextBlock>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
     </StackPanel>
 </UserControl>

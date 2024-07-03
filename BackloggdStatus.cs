@@ -18,7 +18,7 @@ namespace BackloggdStatus
     // ReSharper disable once ClassNeverInstantiated.Global
     public class BackloggdStatus : GenericPlugin
     {
-        private static readonly ILogger logger = LogManager.GetLogger();
+        public static readonly ILogger logger = LogManager.GetLogger();
 
         private BackloggdStatusSettingsViewModel settings { get; set; }
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
@@ -59,7 +59,7 @@ namespace BackloggdStatus
                 logger.Trace("BackloggdStatus Constructor Called");
             }
 
-            settings = new BackloggdStatusSettingsViewModel(this);
+            settings = new BackloggdStatusSettingsViewModel(this, api);
             Properties = new GenericPluginProperties
             {
                 HasSettings = true
@@ -69,12 +69,7 @@ namespace BackloggdStatus
 
 
             backloggdClient = new BackloggdClient(api, logger);
-
-            if (debug)
-            {
-                backloggdClient.DeleteCookies();
-            }
-
+            
             backloggdClient.CheckLogin();
 
 
@@ -227,7 +222,12 @@ namespace BackloggdStatus
 
         public override UserControl GetSettingsView(bool firstRunSettings)
         {
-            return new BackloggdStatusSettingsView();
+            var view = new BackloggdStatusSettingsView();
+            // view.DataContext = settings;
+            // settings.Settings.Games = PlayniteApi.Database.Games.ToList();
+            // settings.Settings.GameNames = settings.Settings.Games.Select(game => game.Name).ToList();
+            // settings.Settings.BackloggdURLs = new List<string>();
+            return view;
         }
     }
 }
