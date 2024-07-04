@@ -49,7 +49,6 @@ namespace BackloggdStatus
         [DontSerialize]
         public List<string> GameNames { get; set; } = new List<string>();
 
-        [DontSerialize]
         public List<string> BackloggdURLs { get; set; } = new List<string>();
     }
 
@@ -111,9 +110,16 @@ namespace BackloggdStatus
 
             // TODO: Change length check to equality check.
             // TODO: Instead of creating a new dictionary, add and remove items from the existing dictionary.
-            if (Settings.BackloggdURLsDictionary.Count != api.Database.Games.Count)
+            // if (Settings.BackloggdURLsDictionary.Count != api.Database.Games.Count)
+            // {
+            //     Settings.BackloggdURLsDictionary = api.Database.Games.ToDictionary(x => x, x => string.Empty).Keys.OrderBy(k => k).ToDictionary(k => k, k => String.Empty);
+            // }
+
+            if (Settings.Games.Count != api.Database.Games.Count)
             {
-                Settings.BackloggdURLsDictionary = api.Database.Games.ToDictionary(x => x, x => string.Empty).Keys.OrderBy(k => k).ToDictionary(k => k, k => String.Empty);
+                Settings.Games = api.Database.Games.ToList();
+                Settings.GameNames = Settings.Games.Select(x => x.Name).ToList();
+                Settings.BackloggdURLs = new List<string>(Settings.Games.Count);
             }
         }
 
