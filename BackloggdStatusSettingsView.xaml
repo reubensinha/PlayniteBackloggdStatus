@@ -13,15 +13,19 @@
 
         <TextBlock Text="List of Games" />
 
-        <ListBox Name="GameList"
-                 ItemsSource="{Binding Settings.Games}"
-                 MaxHeight="400">
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding Name}"></TextBlock>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+        <Grid>
+            <DataGrid Name="GameGrid"
+                      ItemsSource="{Binding Settings.Games}"
+                      AutoGenerateColumns="False"
+                      MaxHeight="400">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Game"
+                                        Binding="{Binding Name}" />
+                    <DataGridTextColumn Header="URL"
+                                        Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=DataContext.Settings.BackloggdURLs[DataContext.Settings.Games.IndexOf(.)]}" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Grid>
 
     </StackPanel>
 </UserControl>
