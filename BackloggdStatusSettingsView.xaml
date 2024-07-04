@@ -13,8 +13,8 @@
 
         <TextBlock Text="List of Games" />
 
-        <ListBox Name="GameList" 
-                 ItemsSource="{Binding Settings.Games}"
+        <ListBox Name="GameList"
+                 ItemsSource="{Binding Settings.BackloggdURLsDictionary.Keys}"
                  MaxHeight="400">
             <ListBox.ItemTemplate>
                 <DataTemplate>

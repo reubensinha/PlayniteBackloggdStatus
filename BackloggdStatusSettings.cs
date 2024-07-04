@@ -42,12 +42,7 @@ namespace BackloggdStatus
         // };
         //
         //
-        // private Dictionary<Game, string> backloggdURLsDictionary;
-        //
-        // public Dictionary<Game, string> BackloggdURLsDictionary
-        // {
-        //     get => backloggdURLsDictionary;
-        //     set => SetValue(ref backloggdURLsDictionary, value);
+        public Dictionary<Game, string> BackloggdURLsDictionary { get; set; } = new Dictionary<Game, string>();
 
         public List<Game> Games { get; set; } = new List<Game>();
 
@@ -114,11 +109,11 @@ namespace BackloggdStatus
             // Code executed when settings view is opened and user starts editing values.
             editingClone = Serialization.GetClone(Settings);
 
-            if (Settings.Games.Count != api.Database.Games.Count)
+            // TODO: Change length check to equality check.
+            // TODO: Instead of creating a new dictionary, add and remove items from the existing dictionary.
+            if (Settings.BackloggdURLsDictionary.Count != api.Database.Games.Count)
             {
-                Settings.Games = api.Database.Games.ToList();
-                Settings.GameNames = Settings.Games.Select(x => x.Name).ToList();
-                Settings.BackloggdURLs = new List<string>(Settings.Games.Count);
+                Settings.BackloggdURLsDictionary = api.Database.Games.ToDictionary(x => x, x => string.Empty).Keys.OrderBy(k => k).ToDictionary(k => k, k => String.Empty);
             }
         }
 
