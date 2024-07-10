@@ -59,6 +59,8 @@ namespace BackloggdStatus
                 logger.Trace("BackloggdStatus Constructor Called");
             }
 
+            PlayniteApiProvider.api = api;
+
             settings = new BackloggdStatusSettingsViewModel(this, api);
             Properties = new GenericPluginProperties
             {
@@ -229,5 +231,10 @@ namespace BackloggdStatus
             // settings.Settings.BackloggdURLs = new List<string>();
             return view;
         }
+    }
+
+    public static class PlayniteApiProvider
+    {
+        public static IPlayniteAPI api { get; set; }
     }
 }

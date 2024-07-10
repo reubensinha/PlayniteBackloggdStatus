@@ -12,6 +12,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using System.Windows.Media.Media3D;
 
 namespace BackloggdStatus
 {
@@ -40,19 +41,6 @@ namespace BackloggdStatus
         // // End Example settings
 
 
-        // private Dictionary<string, string> backloggdStatuses = new Dictionary<string, string>
-        // {
-        //     { "Abandoned", "Abandoned" },
-        //     { "Beaten", "Completed" },
-        //     { "Completed", "Completed" },
-        //     { "On Hold", "Shelved" },
-        //     { "Not Played", "Backlog" },
-        //     { "Plan to Play", "Backlog" },
-        //     { "Played", "Played" },
-        //     { "Playing", "Playing" }
-        // };
-        //
-
         public List<BackloggdURLBinder> BackloggdURLs { get; set; } = new List<BackloggdURLBinder>();
     }
 
@@ -62,6 +50,7 @@ namespace BackloggdStatus
 
         private readonly BackloggdStatus plugin;
         private readonly IPlayniteAPI api;
+
         private BackloggdStatusSettings editingClone { get; set; }
 
         // public ICommand OpenWebViewCommand { get; }
@@ -111,7 +100,7 @@ namespace BackloggdStatus
             // TODO: Instead of creating a new List, add and remove items from the existing List.
             if (Settings.BackloggdURLs.Count != api.Database.Games.Count)
             {
-                Settings.BackloggdURLs = api.Database.Games.Select(x => new BackloggdURLBinder { Game = x, URL = "No URL Saved" }).ToList();
+                Settings.BackloggdURLs = api.Database.Games.Select(game => new BackloggdURLBinder { Game = game, URL = "No URL Saved" }).ToList();
             }
         }
 
@@ -143,37 +132,39 @@ namespace BackloggdStatus
 
     public class BackloggdURLBinder : ObservableObject
     {
-        public BackloggdURLBinder()
-        {
-            OpenWebViewCommand = new RelayCommand(OpenWebView);
-        }
+        private static readonly ILogger logger = LogManager.GetLogger();
+
+        private const int width = 880;
+        private const int height = 530;
 
         public Game Game { get; set; }
 
         private string url;
-
         public string URL
         {
             get => url;
             set => SetValue(ref url, value);
         }
 
-        private static readonly ILogger logger = LogManager.GetLogger();
-
         public ICommand OpenWebViewCommand { get; }
 
-        public void OpenWebView()
+        public BackloggdURLBinder()
+        {
+            OpenWebViewCommand = new RelayCommand(OpenWebView);
+        }
+
+        private void OpenWebView()
         {
             logger.Debug("Call OpenWebView in BackloggdURLBinder");
-            // this.URL = GetWebViewURL();
+
+            using (var webView = PlayniteApiProvider.api.WebViews.CreateView(width, height))
+            {
+                webView.Navigate("https://www.backloggd.com");
+                webView.OpenDialog();
+            }
+
             this.URL = "This is a test url";
             
         }
-
-        // private string GetWebViewURL()
-        // {
-        //     //TODO: Implement this method
-        //     return "This is a test url";
-        // }
     }
 }
