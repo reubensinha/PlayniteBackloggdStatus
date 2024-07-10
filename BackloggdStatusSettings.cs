@@ -159,12 +159,27 @@ namespace BackloggdStatus
 
             using (var webView = PlayniteApiProvider.api.WebViews.CreateView(width, height))
             {
+
+                // TODO: Make this faster.
+                webView.LoadingChanged += (s, e) =>
+                {
+                    var currentAddress = webView.GetCurrentAddress();
+                    if (!string.IsNullOrEmpty(currentAddress) && currentAddress.Contains("https://www.backloggd.com/games"))
+                    {
+                        URL = currentAddress;
+                        webView.Close();
+                    }
+                };
+
                 webView.Navigate("https://www.backloggd.com");
                 webView.OpenDialog();
-            }
 
-            this.URL = "This is a test url";
-            
+                // if (webView.GetCurrentAddress().Contains("https://www.backloggd.com/games"))
+                // {
+                //     URL = webView.GetCurrentAddress();
+                //     webView.Close();
+                // }
+            }
         }
     }
 }
