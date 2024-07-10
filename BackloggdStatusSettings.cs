@@ -174,11 +174,11 @@ namespace BackloggdStatus
                 webView.Navigate("https://www.backloggd.com");
                 webView.OpenDialog();
 
-                // if (webView.GetCurrentAddress().Contains("https://www.backloggd.com/games"))
-                // {
-                //     URL = webView.GetCurrentAddress();
-                //     webView.Close();
-                // }
+                if (webView.GetCurrentAddress().Contains("https://www.backloggd.com/games"))
+                {
+                    URL = webView.GetCurrentAddress();
+                    webView.Close();
+                }
             }
         }
     }
