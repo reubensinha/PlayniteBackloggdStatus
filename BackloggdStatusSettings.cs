@@ -5,11 +5,13 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Runtime;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Input;
 
 namespace BackloggdStatus
 {
@@ -19,9 +21,18 @@ namespace BackloggdStatus
         private string option1 = string.Empty;
         private bool option2 = false;
         // private bool optionThatWontBeSaved = false;
-        
-        public string Option1 { get => option1; set => SetValue(ref option1, value); }
-        public bool Option2 { get => option2; set => SetValue(ref option2, value); }
+
+        public string Option1
+        {
+            get => option1;
+            set => SetValue(ref option1, value);
+        }
+
+        public bool Option2
+        {
+            get => option2;
+            set => SetValue(ref option2, value);
+        }
         // Playnite serializes settings object to a JSON object and saves it as text file.
         // If you want to exclude some property from being saved then use `JsonDontSerialize` ignore attribute.
         // [DontSerialize]
@@ -41,15 +52,8 @@ namespace BackloggdStatus
         //     { "Playing", "Playing" }
         // };
         //
-        //
-        public Dictionary<Game, string> BackloggdURLsDictionary { get; set; } = new Dictionary<Game, string>();
 
-        public List<Game> Games { get; set; } = new List<Game>();
-
-        [DontSerialize]
-        public List<string> GameNames { get; set; } = new List<string>();
-
-        public List<string> BackloggdURLs { get; set; } = new List<string>();
+        public List<BackloggdURLBinder> BackloggdURLs { get; set; } = new List<BackloggdURLBinder>();
     }
 
     public class BackloggdStatusSettingsViewModel : ObservableObject, ISettings
@@ -60,16 +64,9 @@ namespace BackloggdStatus
         private readonly IPlayniteAPI api;
         private BackloggdStatusSettings editingClone { get; set; }
 
+        // public ICommand OpenWebViewCommand { get; }
+
         private BackloggdStatusSettings settings;
-        // public BackloggdStatusSettings Settings
-        // {
-        //     get => settings;
-        //     set
-        //     {
-        //         settings = value;
-        //         OnPropertyChanged();
-        //     }
-        // }
         public BackloggdStatusSettings Settings
         {
             get => settings;
@@ -81,6 +78,8 @@ namespace BackloggdStatus
             // Injecting your plugin instance is required for Save/Load method because Playnite saves data to a location based on what plugin requested the operation.
             this.plugin = plugin;
             this.api = api;
+
+            // OpenWebViewCommand = new RelayCommand<Game>(OpenWebView);
 
             // Load saved settings.
             var savedSettings = plugin.LoadPluginSettings<BackloggdStatusSettings>();
@@ -109,17 +108,10 @@ namespace BackloggdStatus
             editingClone = Serialization.GetClone(Settings);
 
             // TODO: Change length check to equality check.
-            // TODO: Instead of creating a new dictionary, add and remove items from the existing dictionary.
-            // if (Settings.BackloggdURLsDictionary.Count != api.Database.Games.Count)
-            // {
-            //     Settings.BackloggdURLsDictionary = api.Database.Games.ToDictionary(x => x, x => string.Empty).Keys.OrderBy(k => k).ToDictionary(k => k, k => String.Empty);
-            // }
-
-            if (Settings.Games.Count != api.Database.Games.Count)
+            // TODO: Instead of creating a new List, add and remove items from the existing List.
+            if (Settings.BackloggdURLs.Count != api.Database.Games.Count)
             {
-                Settings.Games = api.Database.Games.ToList();
-                Settings.GameNames = Settings.Games.Select(x => x.Name).ToList();
-                Settings.BackloggdURLs = new List<string>(Settings.Games.Count);
+                Settings.BackloggdURLs = api.Database.Games.Select(x => new BackloggdURLBinder { Game = x, URL = "No URL Saved" }).ToList();
             }
         }
 
@@ -146,5 +138,42 @@ namespace BackloggdStatus
             errors = new List<string>();
             return true;
         }
+
+    }
+
+    public class BackloggdURLBinder : ObservableObject
+    {
+        public BackloggdURLBinder()
+        {
+            OpenWebViewCommand = new RelayCommand(OpenWebView);
+        }
+
+        public Game Game { get; set; }
+
+        private string url;
+
+        public string URL
+        {
+            get => url;
+            set => SetValue(ref url, value);
+        }
+
+        private static readonly ILogger logger = LogManager.GetLogger();
+
+        public ICommand OpenWebViewCommand { get; }
+
+        public void OpenWebView()
+        {
+            logger.Debug("Call OpenWebView in BackloggdURLBinder");
+            // this.URL = GetWebViewURL();
+            this.URL = "This is a test url";
+            
+        }
+
+        // private string GetWebViewURL()
+        // {
+        //     //TODO: Implement this method
+        //     return "This is a test url";
+        // }
     }
 }
