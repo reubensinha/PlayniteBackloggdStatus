@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.Eventing.Reader;
 using System.Linq;
+using System.Runtime;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;   
@@ -143,6 +144,42 @@ namespace BackloggdStatus
             }
         }
 
+        public override IEnumerable<GameMenuItem> GetGameMenuItems(GetGameMenuItemsArgs args)
+        {
+            if (verbose)
+            {
+                logger.Trace("GetGameMenuItems Called");
+            }
+
+            yield return new GameMenuItem
+            {
+                // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
+                MenuSection = "BackloggdStatus",
+                Description = GetGameStatus(args),
+                Action = (arg1) => throw new NotImplementedException()
+            };
+
+            // TODO: Only show if game has a Backloggd URL
+            if (true)
+            {
+                // Empty to delineate sections in menu
+                yield return new GameMenuItem
+                {
+                    // Added into game context menu
+                    MenuSection = "BackloggdStatus",
+                    Description = "-"
+                };
+
+                // TODO: Add Menu Item for each potential status on Backloggd.com
+                yield return new GameMenuItem
+                {
+                    // Added into game context menu
+                    MenuSection = "BackloggdStatus",
+                    Description = "Set Status",
+                    Action = (arg1) => throw new NotImplementedException()
+                };
+            }
+        }
 
 
         public override void OnGameInstalled(OnGameInstalledEventArgs args)
@@ -155,6 +192,12 @@ namespace BackloggdStatus
         {
             // Add code to be executed when Playnite is initialized.
             // Todo check if user is logged in to Backloggd and restore any saved data
+            if (settings.Settings.BackloggdURLs == null || settings.Settings.BackloggdURLs.Count == 0)
+            {
+                settings.Settings.BackloggdURLs = PlayniteApi.Database.Games.Select(x => new BackloggdURLBinder { Game = x, URL = "No URL Saved" }).ToList();
+                SavePluginSettings(settings.Settings);
+                logger.Info("BackloggdURLs initialized and saved.");
+            }
 
         }
 
@@ -230,6 +273,12 @@ namespace BackloggdStatus
             // settings.Settings.GameNames = settings.Settings.Games.Select(game => game.Name).ToList();
             // settings.Settings.BackloggdURLs = new List<string>();
             return view;
+        }
+
+        public string GetGameStatus(GetGameMenuItemsArgs args)
+        {
+            var gameName = settings.Settings.BackloggdURLs.Select(x => x).First(x => x.Game == args.Games[0]).Game.Name;
+            return $"This game is {gameName}";
         }
     }
 

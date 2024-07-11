@@ -98,10 +98,10 @@ namespace BackloggdStatus
 
             // TODO: Change length check to equality check.
             // TODO: Instead of creating a new List, add and remove items from the existing List.
-            if (Settings.BackloggdURLs.Count != api.Database.Games.Count)
-            {
-                Settings.BackloggdURLs = api.Database.Games.Select(game => new BackloggdURLBinder { Game = game, URL = "No URL Saved" }).ToList();
-            }
+            // if (Settings.BackloggdURLs.Count != api.Database.Games.Count)
+            // {
+            //     Settings.BackloggdURLs = api.Database.Games.Select(game => new BackloggdURLBinder { Game = game, URL = "No URL Saved" }).ToList();
+            // }
         }
 
         public void CancelEdit()
@@ -146,6 +146,7 @@ namespace BackloggdStatus
             set => SetValue(ref url, value);
         }
 
+        [DontSerialize]
         public ICommand OpenWebViewCommand { get; }
 
         public BackloggdURLBinder()
@@ -161,6 +162,7 @@ namespace BackloggdStatus
             {
 
                 // TODO: Make this faster.
+                // TODO: Open directly to search result using game name.
                 webView.LoadingChanged += (s, e) =>
                 {
                     var currentAddress = webView.GetCurrentAddress();
