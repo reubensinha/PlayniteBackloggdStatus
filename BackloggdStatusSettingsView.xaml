@@ -20,7 +20,7 @@
                       MaxHeight="400">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Game"
-                                        Binding="{Binding Game.Name}" />
+                                        Binding="{Binding Game.Name, Mode=OneWay}" />
 
                     <DataGridTextColumn Header="URL"
                                         Binding="{Binding URL}" />
