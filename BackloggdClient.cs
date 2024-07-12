@@ -26,6 +26,8 @@ namespace BackloggdStatus
         private const int width = 880;
         private const int height = 530;
 
+        private const string HomeUrl = "https://www.backloggd.com";
+
         /// <summary>
         /// Client for interacting with Backloggd.com webpage.
         /// </summary>
@@ -55,19 +57,27 @@ namespace BackloggdStatus
             }
         }
 
+
+        public string GetGameStatus(string game)
+        {
+            //TODO: Find current status
+            return "Current Status";
+        }
+
+
         /// <summary>
-        /// Opens a WebView to Backloggd.com
+        /// Opens a WebView to given url.
         /// </summary>
-        public void OpenWebView()
+        public void OpenWebView(string url = HomeUrl)
         {
             if (verbose)
             {
-                logger.Trace("OpenWebView method called");
+                logger.Trace($"OpenWebView to {url} method called");
             }
 
             using (var webView = playniteApi.WebViews.CreateView(width, height))
             {
-                webView.Navigate("https://www.backloggd.com");
+                webView.Navigate(url);
                 webView.OpenDialog();
             }
 

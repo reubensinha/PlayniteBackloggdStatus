@@ -27,6 +27,8 @@ namespace BackloggdStatus
         private const bool debug = true;
         private const bool verbose = true;
 
+        private const string DefaultURL = "URL not Set";
+
         // TODO: Make Dictionaries configurable in settings.
         private readonly Dictionary<string, string> backloggdStatuses = new Dictionary<string, string>
         {
@@ -72,8 +74,6 @@ namespace BackloggdStatus
 
 
             backloggdClient = new BackloggdClient(api, logger);
-            
-            backloggdClient.CheckLogin();
 
 
 
@@ -151,18 +151,27 @@ namespace BackloggdStatus
                 logger.Trace("GetGameMenuItems Called");
             }
 
-            yield return new GameMenuItem
+            BackloggdURLBinder game = settings.Settings.BackloggdURLs.Select(x => x).First(x => Equals(x.Game, args.Games[0]));
+            if (game.URL == DefaultURL)
             {
-                // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
-                MenuSection = "BackloggdStatus",
-                Description = GetGameStatus(args),
-                Action = (arg1) => throw new NotImplementedException()
-            };
+                yield return new GameMenuItem
+                {
+                    // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
+                    MenuSection = "BackloggdStatus",
+                    Description = DefaultURL,
+                    Action = (arg1) => throw new NotImplementedException() //TODO: Action to set url in settings
+                };
+            }
+            else
+            {
+                yield return new GameMenuItem
+                {
+                    // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
+                    MenuSection = "BackloggdStatus",
+                    Description = backloggdClient.GetGameStatus(game.URL),
+                    Action = (arg1) => backloggdClient.OpenWebView(game.URL)
+                };
 
-            // TODO: Only show if game has a Backloggd URL
-            if (true)
-            {
-                // Empty to delineate sections in menu
                 yield return new GameMenuItem
                 {
                     // Added into game context menu
@@ -191,10 +200,13 @@ namespace BackloggdStatus
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             // Add code to be executed when Playnite is initialized.
-            // Todo check if user is logged in to Backloggd and restore any saved data
+            backloggdClient.CheckLogin();
+
+            // TODO: Change length check to equality check.
+            // TODO: Instead of creating a new List, add and remove items from the existing List.
             if (settings.Settings.BackloggdURLs == null || settings.Settings.BackloggdURLs.Count == 0)
             {
-                settings.Settings.BackloggdURLs = PlayniteApi.Database.Games.Select(x => new BackloggdURLBinder { Game = x, URL = "No URL Saved" }).ToList();
+                settings.Settings.BackloggdURLs = PlayniteApi.Database.Games.Select(x => new BackloggdURLBinder { Game = x, URL = DefaultURL }).ToList();
                 SavePluginSettings(settings.Settings);
                 logger.Info("BackloggdURLs initialized and saved.");
             }
@@ -275,11 +287,6 @@ namespace BackloggdStatus
             return view;
         }
 
-        public string GetGameStatus(GetGameMenuItemsArgs args)
-        {
-            var gameName = settings.Settings.BackloggdURLs.Select(x => x).First(x => x.Game == args.Games[0]).Game.Name;
-            return $"This game is {gameName}";
-        }
     }
 
     public static class PlayniteApiProvider

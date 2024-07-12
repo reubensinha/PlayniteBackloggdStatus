@@ -95,13 +95,6 @@ namespace BackloggdStatus
         {
             // Code executed when settings view is opened and user starts editing values.
             editingClone = Serialization.GetClone(Settings);
-
-            // TODO: Change length check to equality check.
-            // TODO: Instead of creating a new List, add and remove items from the existing List.
-            // if (Settings.BackloggdURLs.Count != api.Database.Games.Count)
-            // {
-            //     Settings.BackloggdURLs = api.Database.Games.Select(game => new BackloggdURLBinder { Game = game, URL = "No URL Saved" }).ToList();
-            // }
         }
 
         public void CancelEdit()
