@@ -2,6 +2,7 @@
 using Playnite.SDK.Events;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
+using Playnite.SDK.Data;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -19,7 +20,7 @@ namespace BackloggdStatus
     // ReSharper disable once ClassNeverInstantiated.Global
     public class BackloggdStatus : GenericPlugin
     {
-        public static readonly ILogger logger = LogManager.GetLogger();
+        private static readonly ILogger logger = LogManager.GetLogger();
 
         private BackloggdStatusSettingsViewModel settings { get; set; }
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
@@ -27,7 +28,7 @@ namespace BackloggdStatus
         private const bool debug = true;
         private const bool verbose = true;
 
-        private const string DefaultURL = "URL not Set";
+        public static readonly string DefaultURL = "URL not Set";
 
         // TODO: Make Dictionaries configurable in settings.
         private readonly Dictionary<string, string> backloggdStatuses = new Dictionary<string, string>
@@ -73,7 +74,7 @@ namespace BackloggdStatus
             logger.Info("BackloggdStatus Initialized");
 
 
-            backloggdClient = new BackloggdClient(api, logger);
+            backloggdClient = new BackloggdClient();
 
 
 
@@ -146,6 +147,9 @@ namespace BackloggdStatus
 
         public override IEnumerable<GameMenuItem> GetGameMenuItems(GetGameMenuItemsArgs args)
         {
+            List<string> statusList = new List<string>();
+
+
             if (verbose)
             {
                 logger.Trace("GetGameMenuItems Called");
@@ -164,13 +168,27 @@ namespace BackloggdStatus
             }
             else
             {
-                yield return new GameMenuItem
+                statusList = backloggdClient.GetGameStatus(game.URL);  // TODO: Slows down context menu loading. Find a way to cache this.
+
+                if (statusList.Count == 0)
                 {
-                    // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
-                    MenuSection = "BackloggdStatus",
-                    Description = backloggdClient.GetGameStatus(game.URL),
-                    Action = (arg1) => backloggdClient.OpenWebView(game.URL)
-                };
+                    statusList.Add("Status: Not Set");
+                }
+
+                foreach (string status in statusList)
+                {
+                    yield return new GameMenuItem
+                    {
+                        // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
+                        MenuSection = "BackloggdStatus",
+                        Description = status,
+                        Action = (arg1) =>
+                        {
+                            backloggdClient.OpenWebView(game.URL);
+                            // TODO: Update Game Status when closing WebView
+                        }
+                    };
+                }
 
                 yield return new GameMenuItem
                 {
@@ -206,7 +224,7 @@ namespace BackloggdStatus
             // TODO: Instead of creating a new List, add and remove items from the existing List.
             if (settings.Settings.BackloggdURLs == null || settings.Settings.BackloggdURLs.Count == 0)
             {
-                settings.Settings.BackloggdURLs = PlayniteApi.Database.Games.Select(x => new BackloggdURLBinder { Game = x, URL = DefaultURL }).ToList();
+                settings.Settings.BackloggdURLs = PlayniteApi.Database.Games.Select(game => new BackloggdURLBinder { Game = game, URL = DefaultURL, StatusList = new List<string> { "Status: Unknown" } }).ToList();
                 SavePluginSettings(settings.Settings);
                 logger.Info("BackloggdURLs initialized and saved.");
             }

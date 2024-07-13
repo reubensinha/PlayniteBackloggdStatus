@@ -139,41 +139,45 @@ namespace BackloggdStatus
             set => SetValue(ref url, value);
         }
 
+        private List<string> statusList;
+        public List<string> StatusList
+        {
+            get => statusList;
+            set => SetValue(ref statusList, value);
+        }
+
         [DontSerialize]
         public ICommand OpenWebViewCommand { get; }
+
+        [DontSerialize]
+        public ICommand RefreshCommand { get; }
+
+        [DontSerialize]
+        private readonly BackloggdClient backloggdClient = new BackloggdClient();
 
         public BackloggdURLBinder()
         {
             OpenWebViewCommand = new RelayCommand(OpenWebView);
+            RefreshCommand = new RelayCommand(GetStatus);
         }
 
         private void OpenWebView()
         {
             logger.Debug("Call OpenWebView in BackloggdURLBinder");
 
-            using (var webView = PlayniteApiProvider.api.WebViews.CreateView(width, height))
+            URL = backloggdClient.SetBackloggdUrl();
+            GetStatus();    // TODO: Test this
+        }
+
+        private void GetStatus()
+        {
+            logger.Debug("Call GetStatus in BackloggdURLBinder");
+            
+            StatusList = backloggdClient.GetGameStatus(URL);
+
+            if (StatusList.Count == 0)
             {
-
-                // TODO: Make this faster.
-                // TODO: Open directly to search result using game name.
-                webView.LoadingChanged += (s, e) =>
-                {
-                    var currentAddress = webView.GetCurrentAddress();
-                    if (!string.IsNullOrEmpty(currentAddress) && currentAddress.Contains("https://www.backloggd.com/games"))
-                    {
-                        URL = currentAddress;
-                        webView.Close();
-                    }
-                };
-
-                webView.Navigate("https://www.backloggd.com");
-                webView.OpenDialog();
-
-                if (webView.GetCurrentAddress().Contains("https://www.backloggd.com/games"))
-                {
-                    URL = webView.GetCurrentAddress();
-                    webView.Close();
-                }
+                StatusList.Add("Status: Unknown");
             }
         }
     }

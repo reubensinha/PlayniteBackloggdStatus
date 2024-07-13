@@ -25,7 +25,7 @@
                     <DataGridTextColumn Header="URL"
                                         Binding="{Binding URL}" />
 
-                    <DataGridTemplateColumn Header="Actions">
+                    <DataGridTemplateColumn Header="Find URL">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Button Content="Open WebView"
@@ -33,6 +33,18 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Refresh Status">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="Refresh Status"
+                                        Command="{Binding RefreshCommand}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="URL"
+                                        Binding="{Binding StatusList}" />
 
                 </DataGrid.Columns>
             </DataGrid>

@@ -2,6 +2,7 @@
 using Playnite.SDK.Events;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
+using Playnite.SDK.Data;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Eventing.Reader;
@@ -11,13 +12,14 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
+using System.Security.Policy;
 
 namespace BackloggdStatus
 {
     public class BackloggdClient
     {
-        private readonly IPlayniteAPI playniteApi;
-        private readonly ILogger logger;
+        private readonly IPlayniteAPI playniteApi = PlayniteApiProvider.api;
+        private readonly ILogger logger = LogManager.GetLogger();
 
 
         private bool loggedIn { get; set; }
@@ -28,16 +30,6 @@ namespace BackloggdStatus
 
         private const string HomeUrl = "https://www.backloggd.com";
 
-        /// <summary>
-        /// Client for interacting with Backloggd.com webpage.
-        /// </summary>
-        /// <param name="api">Playnite API object</param>
-        /// <param name="logger">Playnite logger object</param>
-        public BackloggdClient(IPlayniteAPI api, ILogger logger)
-        {
-            playniteApi = api;
-            this.logger = logger;
-        }
 
         /// <summary>
         /// Deletes all cookies from Backloggd.com
@@ -58,10 +50,115 @@ namespace BackloggdStatus
         }
 
 
-        public string GetGameStatus(string game)
+        public List<string> GetGameStatus(string gameUrl)
         {
             //TODO: Find current status
-            return "Current Status";
+            List<string> statusList;
+
+            if (verbose)
+            {
+                logger.Trace("Public GetGameStatus method called");
+            }
+
+            logger.Debug("Public GetGameStatus");
+
+            using (var webView = playniteApi.WebViews.CreateOffscreenView())
+            {
+                statusList = GetGameStatus(webView, gameUrl).GetAwaiter().GetResult();
+            }
+
+            return statusList;
+        }
+
+        private async Task<List<string>> GetGameStatus(IWebView webView, string url)
+        {
+            if (verbose)
+            {
+                logger.Trace("Private GetGameStatus method called");
+            }
+
+            logger.Debug("Private GetGameStatus");
+            webView.Navigate(url);
+
+            var navigationCompleted = new TaskCompletionSource<bool>();
+            bool eventHandled = false;
+            List<string> statusList = new List<string>();
+
+            Dictionary<string, string> statusMapper = new Dictionary<string, string>
+            {
+                { "wishlist-btn-container", "Status: Wishlist" },
+                { "backlog-btn-container", "Status: Backlog" },
+                { "playing-btn-container", "Status: Playing" },
+                { "play-btn-container", "Status: Played" } // TODO: Find What type of 'played' status this is.
+            };
+
+            webView.LoadingChanged += async (s, e) =>
+            {
+                if (!e.IsLoading && !eventHandled)
+                {
+                    eventHandled = true;
+                    // This Menu is the sign-out box which only appears when user is logged in.
+                    // TODO: Find the correct selector for the status.
+                    string script = @"Array.from(document.querySelectorAll('#buttons > .btn-play-fill'));";
+                    logger.Debug("In webView.LoadingChanged - GetGameStatus method");
+
+                    try
+                    {
+                        var result = await webView.EvaluateScriptAsync(script);
+                        logger.Debug("Script Run");
+
+                        statusList = Serialization.FromJson<List<string>>(result.Result.ToString());
+
+                        navigationCompleted.SetResult(true);
+
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.Error(exception.Message);
+                        navigationCompleted.SetResult(false);
+                    }
+                }
+            };
+
+            await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
+
+            if (verbose)
+            {
+                logger.Trace("GetGameStatus method finished");
+            }
+
+            // Change this later
+            statusList = statusList.Select(SetStatusString).ToList();
+
+            return statusList;
+        }
+
+        private string SetStatusString(string status)
+        {
+            if (verbose)
+            {
+                logger.Trace("SetStatusString method called");
+            }
+
+            logger.Debug("SetStatusString");
+
+            Dictionary<string, string> statusMapper = new Dictionary<string, string>
+            {
+                { "wishlist-btn-container", "Status: Wishlist" },
+                { "backlog-btn-container", "Status: Backlog" },
+                { "playing-btn-container", "Status: Playing" },
+                { "play-btn-container", "Status: Played" } // TODO: Find What type of 'played' status this is.
+            };
+
+            foreach (var key in statusMapper.Keys)
+            {
+                if (status.Contains(key))
+                {
+                    return statusMapper[key];
+                }
+            }
+
+            return "Status: Unknown";
         }
 
 
@@ -231,6 +328,8 @@ namespace BackloggdStatus
                     }
                 }
             };
+
+
         
             await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
         
@@ -238,6 +337,38 @@ namespace BackloggdStatus
             {
                 logger.Trace("CheckLogin method finished");
             }
+        }
+
+        public string SetBackloggdUrl()
+        {
+            string URL = BackloggdStatus.DefaultURL;
+
+            using (var webView = PlayniteApiProvider.api.WebViews.CreateView(width, height))
+            {
+
+                // TODO: Make this faster.
+                // TODO: Open directly to search result using game name.
+                webView.LoadingChanged += (s, e) =>
+                {
+                    var currentAddress = webView.GetCurrentAddress();
+                    if (!string.IsNullOrEmpty(currentAddress) && currentAddress.Contains("https://www.backloggd.com/games"))
+                    {
+                        URL = currentAddress;
+                        webView.Close();
+                    }
+                };
+
+                webView.Navigate("https://www.backloggd.com");
+                webView.OpenDialog();
+
+                if (webView.GetCurrentAddress().Contains("https://www.backloggd.com/games"))
+                {
+                    URL = webView.GetCurrentAddress();
+                    webView.Close();
+                }
+            }
+
+            return URL;
         }
 
     }
