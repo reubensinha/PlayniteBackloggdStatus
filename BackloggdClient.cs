@@ -64,8 +64,15 @@ namespace BackloggdStatus
 
             using (var webView = playniteApi.WebViews.CreateOffscreenView())
             {
+                logger.Debug($"Opening WebView to: {gameUrl}");
                 statusList = GetGameStatus(webView, gameUrl).GetAwaiter().GetResult();
             }
+
+
+            statusList = statusList.Select(SetStatusString).ToList();
+
+
+            logger.Debug($"StatusList has count: {statusList.Count} set to: {statusList} : {statusList.GetType()}");
 
             return statusList;
         }
@@ -78,43 +85,45 @@ namespace BackloggdStatus
             }
 
             logger.Debug("Private GetGameStatus");
+
+            bool eventHandled = false;
+            var navigationCompleted = new TaskCompletionSource<bool>();
+
+            List<string> statusList = new List<string>();
+            JavaScriptEvaluationResult result = null;
+
             webView.Navigate(url);
 
-            var navigationCompleted = new TaskCompletionSource<bool>();
-            bool eventHandled = false;
-            List<string> statusList = new List<string>();
-
-            Dictionary<string, string> statusMapper = new Dictionary<string, string>
-            {
-                { "wishlist-btn-container", "Status: Wishlist" },
-                { "backlog-btn-container", "Status: Backlog" },
-                { "playing-btn-container", "Status: Playing" },
-                { "play-btn-container", "Status: Played" } // TODO: Find What type of 'played' status this is.
-            };
 
             webView.LoadingChanged += async (s, e) =>
             {
-                if (!e.IsLoading && !eventHandled)
+                if (!e.IsLoading && !navigationCompleted.Task.IsCompleted)
                 {
                     eventHandled = true;
-                    // This Menu is the sign-out box which only appears when user is logged in.
-                    // TODO: Find the correct selector for the status.
-                    string script = @"Array.from(document.querySelectorAll('#buttons > .btn-play-fill'));";
-                    logger.Debug("In webView.LoadingChanged - GetGameStatus method");
+
+                    string script = @"
+                        JSON.stringify(Array.from(document.querySelectorAll('#buttons > .btn-play-fill')).map(el => el.className));
+                    ";
+
+                    logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
 
                     try
                     {
-                        var result = await webView.EvaluateScriptAsync(script);
-                        logger.Debug("Script Run");
+                        result = await webView.EvaluateScriptAsync(script);
 
-                        statusList = Serialization.FromJson<List<string>>(result.Result.ToString());
+
+                        if (result != null && result.Result != null)
+                        {
+                            statusList = Serialization.FromJson<List<string>>(result.Result.ToString());
+                        }
 
                         navigationCompleted.SetResult(true);
 
                     }
                     catch (Exception exception)
                     {
-                        logger.Error(exception.Message);
+                        logger.Error($"Error in GetGameStatus: { exception.Message}");
+
                         navigationCompleted.SetResult(false);
                     }
                 }
@@ -122,13 +131,13 @@ namespace BackloggdStatus
 
             await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
 
+
+
             if (verbose)
             {
                 logger.Trace("GetGameStatus method finished");
             }
 
-            // Change this later
-            statusList = statusList.Select(SetStatusString).ToList();
 
             return statusList;
         }
@@ -137,7 +146,7 @@ namespace BackloggdStatus
         {
             if (verbose)
             {
-                logger.Trace("SetStatusString method called");
+                logger.Trace($"SetStatusString method called with {status}");
             }
 
             logger.Debug("SetStatusString");
@@ -277,6 +286,7 @@ namespace BackloggdStatus
 
         private async Task CheckLogin(IWebView webView)
         {
+            // TODO: This is broken. Fix it.
             if (verbose)
             {
                 logger.Trace("Private CheckLogin method called");
@@ -358,13 +368,16 @@ namespace BackloggdStatus
                     }
                 };
 
-                webView.Navigate("https://www.backloggd.com");
+                webView.Navigate(HomeUrl);
+
                 webView.OpenDialog();
 
                 if (webView.GetCurrentAddress().Contains("https://www.backloggd.com/games"))
                 {
                     URL = webView.GetCurrentAddress();
-                    webView.Close();
+
+                    // TODO: I don't think this is necessary? But I had it in before. Plz Verify
+                    // webView.Close();
                 }
             }
 
