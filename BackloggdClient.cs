@@ -22,7 +22,7 @@ namespace BackloggdStatus
         private readonly ILogger logger = LogManager.GetLogger();
 
 
-        private bool loggedIn { get; set; }
+        public bool LoggedIn { get; private set; }
         private const bool verbose = true;
 
         private const int width = 880;
@@ -90,14 +90,17 @@ namespace BackloggdStatus
 
             List<string> statusList = new List<string>();
             JavaScriptEvaluationResult result = null;
+            bool eventHandled = false;
 
             webView.Navigate(url);
 
 
             webView.LoadingChanged += async (s, e) =>
             {
-                if (!e.IsLoading && !navigationCompleted.Task.IsCompleted)
+                if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
                 {
+                    eventHandled = true;
+
                     string script = @"
                         JSON.stringify(Array.from(document.querySelectorAll('#buttons > .btn-play-fill')).map(el => el.className));
                     ";
@@ -295,11 +298,13 @@ namespace BackloggdStatus
         
         
             var navigationCompleted = new TaskCompletionSource<bool>();
+            bool eventHandled = false;
         
             webView.LoadingChanged += async (s, e) =>
             {
-                if (!e.IsLoading && !navigationCompleted.Task.IsCompleted)
+                if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
                 {
+                    eventHandled = true;
                     // This Menu is the sign-out box which only appears when user is logged in.
                     string script = @"
                         document.querySelector('#mobile-user-nav > div:nth-child(3) > a') !== null;
@@ -319,24 +324,24 @@ namespace BackloggdStatus
                             if (bool.Parse(result.Result.ToString()))
                             {
                                 logger.Info("Logged In");
-                                loggedIn = true;
+                                LoggedIn = true;
                             }
                             else
                             {
                                 logger.Debug("Logged Out");
-                                loggedIn = false;
+                                LoggedIn = false;
                             }
                         }
                         else
                         {
                             logger.Debug("Result is not set correctly");
-                            loggedIn = false;
+                            LoggedIn = false;
                             
                         }
 
                         if (verbose)
                         {
-                            logger.Trace($"loggedIn set to {loggedIn}");
+                            logger.Trace($"LoggedIn set to {LoggedIn}");
                         }
 
                         navigationCompleted.SetResult(true);

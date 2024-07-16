@@ -170,7 +170,7 @@ namespace BackloggdStatus
             GetStatus();    // TODO: Test this
         }
 
-        private void GetStatus()
+        public void GetStatus()
         {
             logger.Debug("Call GetStatus in BackloggdURLBinder");
             
@@ -178,7 +178,7 @@ namespace BackloggdStatus
 
             if (StatusList.Count == 0)
             {
-                StatusList.Add("Status: Unknown");
+                StatusList.Add("Status: Not Set");
             }
         }
     }
