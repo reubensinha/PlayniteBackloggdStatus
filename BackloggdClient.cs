@@ -86,7 +86,6 @@ namespace BackloggdStatus
 
             logger.Debug("Private GetGameStatus");
 
-            bool eventHandled = false;
             var navigationCompleted = new TaskCompletionSource<bool>();
 
             List<string> statusList = new List<string>();
@@ -99,8 +98,6 @@ namespace BackloggdStatus
             {
                 if (!e.IsLoading && !navigationCompleted.Task.IsCompleted)
                 {
-                    eventHandled = true;
-
                     string script = @"
                         JSON.stringify(Array.from(document.querySelectorAll('#buttons > .btn-play-fill')).map(el => el.className));
                     ";
@@ -286,54 +283,67 @@ namespace BackloggdStatus
 
         private async Task CheckLogin(IWebView webView)
         {
-            // TODO: This is broken. Fix it.
             if (verbose)
             {
                 logger.Trace("Private CheckLogin method called");
             }
-        
+
+            JavaScriptEvaluationResult result = null;
+
             logger.Debug("Private CheckLogin");
             webView.Navigate("https://www.backloggd.com");
         
         
             var navigationCompleted = new TaskCompletionSource<bool>();
-            bool eventHandled = false;
         
             webView.LoadingChanged += async (s, e) =>
             {
-                if (!e.IsLoading && !eventHandled)
+                if (!e.IsLoading && !navigationCompleted.Task.IsCompleted)
                 {
-                    eventHandled = true;
                     // This Menu is the sign-out box which only appears when user is logged in.
-                    string script = "document.querySelector('#mobile-user-nav > div:nth-child(3) > a');";
+                    string script = @"
+                        document.querySelector('#mobile-user-nav > div:nth-child(3) > a') !== null;
+                    ";
+
+
                     logger.Debug("In webView.LoadingChanged - CheckLogin method");
+                    logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
 
                     try
                     {
-                        var result = await webView.EvaluateScriptAsync(script);
-                        logger.Debug("Script Run");
+                        result = await webView.EvaluateScriptAsync(script);
+                        logger.Debug($"Executing Script {script} - Result: {result?.Result}");
 
-                        if (result.Result != null)
+                        if (result != null && result.Result != null)
                         {
-                            logger.Info("Logged In");
-                            loggedIn = true;
+                            if (bool.Parse(result.Result.ToString()))
+                            {
+                                logger.Info("Logged In");
+                                loggedIn = true;
+                            }
+                            else
+                            {
+                                logger.Debug("Logged Out");
+                                loggedIn = false;
+                            }
                         }
                         else
                         {
-                            logger.Info("Logged Out");
+                            logger.Debug("Result is not set correctly");
                             loggedIn = false;
                             
                         }
-                        navigationCompleted.SetResult(true);
 
                         if (verbose)
                         {
                             logger.Trace($"loggedIn set to {loggedIn}");
                         }
+
+                        navigationCompleted.SetResult(true);
                     }
                     catch (Exception exception)
                     {
-                        logger.Error(exception.Message);
+                        logger.Error($"Error in GetGameStatus: {exception.Message}");
                         navigationCompleted.SetResult(false);
                     }
                 }

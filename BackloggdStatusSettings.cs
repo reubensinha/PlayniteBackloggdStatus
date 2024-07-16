@@ -130,6 +130,7 @@ namespace BackloggdStatus
         private const int width = 880;
         private const int height = 530;
 
+        // TODO: Refactor to only serialize Game GUID and Game Name
         public Game Game { get; set; }
 
         private string url;
