@@ -126,12 +126,9 @@ namespace BackloggdStatus
     public class BackloggdURLBinder : ObservableObject
     {
         private static readonly ILogger logger = LogManager.GetLogger();
-
-        private const int width = 880;
-        private const int height = 530;
-
-        // TODO: Refactor to only serialize Game GUID and Game Name
-        public Game Game { get; set; }
+        
+        public Guid GameId { get; set; }
+        public string GameName { get; set; }
 
         private string url;
         public string URL
@@ -145,6 +142,13 @@ namespace BackloggdStatus
         {
             get => statusList;
             set => SetValue(ref statusList, value);
+        }
+
+        private string statusString;
+        public string StatusString
+        {
+            get => statusString;
+            set => SetValue(ref statusString, value);
         }
 
         [DontSerialize]
@@ -166,20 +170,35 @@ namespace BackloggdStatus
         {
             logger.Debug("Call OpenWebView in BackloggdURLBinder");
 
-            URL = backloggdClient.SetBackloggdUrl();
-            GetStatus();    // TODO: Test this
+            URL = backloggdClient.SetBackloggdUrl(GameName);
+            GetStatus();
         }
 
         public void GetStatus()
         {
+            if (URL == BackloggdStatus.DefaultURL)
+            {
+                StatusList = new List<string> { "Status: Unknown" };
+                FlattenStatus();
+                return;
+            }
+
             logger.Debug("Call GetStatus in BackloggdURLBinder");
             
             StatusList = backloggdClient.GetGameStatus(URL);
 
-            if (StatusList.Count == 0)
+            FlattenStatus();
+        }
+
+        private void FlattenStatus()
+        {
+            StatusString = String.Empty;
+
+            foreach (string status in StatusList)
             {
-                StatusList.Add("Status: Not Set");
+                StatusString += status.Substring(8) + ", ";
             }
+
         }
     }
 }

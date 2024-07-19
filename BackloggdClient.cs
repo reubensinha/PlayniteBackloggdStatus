@@ -18,7 +18,7 @@ namespace BackloggdStatus
 {
     public class BackloggdClient
     {
-        private readonly IPlayniteAPI playniteApi = PlayniteApiProvider.api;
+        private readonly IPlayniteAPI playniteApi = PlayniteApiProvider.Api;
         private readonly ILogger logger = LogManager.GetLogger();
 
 
@@ -28,13 +28,13 @@ namespace BackloggdStatus
         private const int width = 880;
         private const int height = 530;
 
-        private const string HomeUrl = "https://www.backloggd.com";
+        private const string homeUrl = "https://www.backloggd.com";
 
 
         /// <summary>
         /// Deletes all cookies from Backloggd.com
         /// </summary>
-        public void DeleteCookies()
+        private void DeleteCookies()
         {
             if (verbose)
             {
@@ -52,7 +52,6 @@ namespace BackloggdStatus
 
         public List<string> GetGameStatus(string gameUrl)
         {
-            //TODO: Find current status
             List<string> statusList;
 
             if (verbose)
@@ -167,14 +166,14 @@ namespace BackloggdStatus
                 }
             }
 
-            return "Status: Unknown";
+            return "Status: Not Set";
         }
 
 
         /// <summary>
         /// Opens a WebView to given url.
         /// </summary>
-        public void OpenWebView(string url = HomeUrl)
+        public void OpenWebView(string url = homeUrl)
         {
             if (verbose)
             {
@@ -306,7 +305,7 @@ namespace BackloggdStatus
                 {
                     eventHandled = true;
                     // This Menu is the sign-out box which only appears when user is logged in.
-                    string script = @"
+                    const string script = @"
                         document.querySelector('#mobile-user-nav > div:nth-child(3) > a') !== null;
                     ";
 
@@ -364,39 +363,48 @@ namespace BackloggdStatus
             }
         }
 
-        public string SetBackloggdUrl()
+        public string SetBackloggdUrl(string name = null)
         {
-            string URL = BackloggdStatus.DefaultURL;
+            string searchUrl;
+            string url = BackloggdStatus.DefaultURL;
 
-            using (var webView = PlayniteApiProvider.api.WebViews.CreateView(width, height))
+            if (name != null)
             {
+                searchUrl = $"https://www.backloggd.com/search/games/{name.Replace(" ", "%20")}";
+            }
+            else
+            {
+                searchUrl = homeUrl;
+            }
 
-                // TODO: Make this faster.
-                // TODO: Open directly to search result using game name.
+            using (var webView = PlayniteApiProvider.Api.WebViews.CreateView(width, height))
+            {
+                // TODO: Make this faster if possible.
+                
                 webView.LoadingChanged += (s, e) =>
                 {
                     var currentAddress = webView.GetCurrentAddress();
                     if (!string.IsNullOrEmpty(currentAddress) && currentAddress.Contains("https://www.backloggd.com/games"))
                     {
-                        URL = currentAddress;
+                        url = currentAddress;
                         webView.Close();
                     }
                 };
 
-                webView.Navigate(HomeUrl);
+                webView.Navigate(searchUrl);
 
                 webView.OpenDialog();
 
                 if (webView.GetCurrentAddress().Contains("https://www.backloggd.com/games"))
                 {
-                    URL = webView.GetCurrentAddress();
+                    url = webView.GetCurrentAddress();
 
                     // TODO: I don't think this is necessary? But I had it in before. Plz Verify
                     // webView.Close();
                 }
             }
 
-            return URL;
+            return url;
         }
 
     }

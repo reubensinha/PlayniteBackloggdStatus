@@ -28,7 +28,7 @@ namespace BackloggdStatus
         private const bool debug = true;
         private const bool verbose = true;
 
-        public static readonly string DefaultURL = "URL not Set";
+        public const string DefaultURL = "URL not Set";
 
         // TODO: Make Dictionaries configurable in settings.
         private readonly Dictionary<string, string> backloggdStatuses = new Dictionary<string, string>
@@ -63,7 +63,7 @@ namespace BackloggdStatus
                 logger.Trace("BackloggdStatus Constructor Called");
             }
 
-            PlayniteApiProvider.api = api;
+            PlayniteApiProvider.Api = api;
 
             settings = new BackloggdStatusSettingsViewModel(this, api);
             Properties = new GenericPluginProperties
@@ -153,7 +153,7 @@ namespace BackloggdStatus
                 logger.Trace("GetGameMenuItems Called");
             }
 
-            BackloggdURLBinder game = settings.Settings.BackloggdURLs.Select(x => x).First(x => Equals(x.Game, args.Games[0]));
+            BackloggdURLBinder game = settings.Settings.BackloggdURLs.Select(x => x).First(x => x.GameId == args.Games[0].Id);
 
             List<string> statusList = game.StatusList;
 
@@ -195,17 +195,10 @@ namespace BackloggdStatus
 
                     yield return new GameMenuItem
                     {
-                        // Added into game context menu
                         MenuSection = "BackloggdStatus",
                         Description = "-"
                     };
 
-                    // TODO: Slows down context menu loading. Find a way to cache this.
-
-                    if (statusList.Count == 0)
-                    {
-                        statusList.Add("Status: Not Set");
-                    }
 
                     foreach (string status in statusList)
                     {
@@ -242,12 +235,24 @@ namespace BackloggdStatus
 
                     yield return new GameMenuItem
                     {
-                        // Added into game context menu
                         MenuSection = "BackloggdStatus",
-                        Description = "Open Backloggd.com",
+                        Description = "Open Backloggd Page",
                         Action = (arg1) =>
                         {
                             backloggdClient.OpenWebView(game.URL);
+                            game.GetStatus();
+                            SavePluginSettings(settings.Settings);
+                        }
+                    };
+
+                    // TODO: Add Option to change Backloggd URL
+                    yield return new GameMenuItem
+                    {
+                        MenuSection = "BackloggdStatus",
+                        Description = "Change Backloggd Game",
+                        Action = (arg1) =>
+                        {
+                            backloggdClient.SetBackloggdUrl(game.GameName);
                             game.GetStatus();
                             SavePluginSettings(settings.Settings);
                         }
@@ -261,6 +266,7 @@ namespace BackloggdStatus
         {
             // Add code to be executed when game is finished installing.
             // TODO: If not in Backloggd library, set Backloggd status to Backlog
+            // TODO: Add to BackloggdURLs
         }
 
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
@@ -272,7 +278,14 @@ namespace BackloggdStatus
             // TODO: Instead of creating a new List, add and remove items from the existing List.
             if (settings.Settings.BackloggdURLs == null || settings.Settings.BackloggdURLs.Count == 0)
             {
-                settings.Settings.BackloggdURLs = PlayniteApi.Database.Games.Select(game => new BackloggdURLBinder { Game = game, URL = DefaultURL, StatusList = new List<string> { "Status: Unknown" } }).ToList();
+                settings.Settings.BackloggdURLs = PlayniteApi.Database.Games.Select(game => new BackloggdURLBinder 
+                    { 
+                        GameId = game.Id,
+                        GameName = game.Name,
+                        URL = DefaultURL, 
+                        StatusList = new List<string> { "Status: Unknown" },
+                        StatusString = "Status: Unknown"
+                    }).ToList();
                 SavePluginSettings(settings.Settings);
                 logger.Info("BackloggdURLs initialized and saved.");
             }
@@ -282,7 +295,7 @@ namespace BackloggdStatus
         public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
         {
             // Add code to be executed when library is updated.
-            // TODO: Find updated Playnite statuses and update backloggd statuses
+            // TODO: Add new games to BackloggdURLs and Remove games no longer in library.
         }
 
 
@@ -332,11 +345,11 @@ namespace BackloggdStatus
         // {
         //     // Add code to be executed when game is preparing to be started.
         // }
-        //
-        // public override void OnGameUninstalled(OnGameUninstalledEventArgs args)
-        // {
-        //     // Add code to be executed when game is uninstalled.
-        // }
+        public override void OnGameUninstalled(OnGameUninstalledEventArgs args)
+        {
+            // Add code to be executed when game is uninstalled.
+            // TODO: Remove game from BackloggdURLs
+        }
 
         public override ISettings GetSettings(bool firstRunSettings)
         {
@@ -357,6 +370,6 @@ namespace BackloggdStatus
 
     public static class PlayniteApiProvider
     {
-        public static IPlayniteAPI api { get; set; }
+        public static IPlayniteAPI Api { get; set; }
     }
 }
