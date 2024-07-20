@@ -125,24 +125,26 @@ namespace BackloggdStatus
                 Action = (args1) => throw new NotImplementedException()
             };
 
-            if (debug)
+            if (!debug)
             {
-                yield return new MainMenuItem
-                {
-                    // Added into "Extensions -> BackloggdStatus" menu
-                    MenuSection = "@BackloggdStatus",
-                    Description = "Open WebView",
-                    Action = (args1) => backloggdClient.OpenWebView()
-                };
-
-                yield return new MainMenuItem
-                {
-                    // Added into "Extensions -> BackloggdStatus" menu
-                    MenuSection = "@BackloggdStatus",
-                    Description = "Sign Out",
-                    Action = (arg1) => backloggdClient.Logout()
-                };
+                yield break;
             }
+
+            yield return new MainMenuItem
+            {
+                // Added into "Extensions -> BackloggdStatus" menu
+                MenuSection = "@BackloggdStatus",
+                Description = "Open WebView",
+                Action = (args1) => backloggdClient.OpenWebView()
+            };
+
+            yield return new MainMenuItem
+            {
+                // Added into "Extensions -> BackloggdStatus" menu
+                MenuSection = "@BackloggdStatus",
+                Description = "Sign Out",
+                Action = (arg1) => backloggdClient.Logout()
+            };
         }
 
         public override IEnumerable<GameMenuItem> GetGameMenuItems(GetGameMenuItemsArgs args)
@@ -166,99 +168,99 @@ namespace BackloggdStatus
                     Description = "Sign In",
                     Action = (arg1) => backloggdClient.Login()
                 };
+
+                yield break;
             }
-            else
+
+            if (game.URL == DefaultURL)
             {
-                if (game.URL == DefaultURL)
+                yield return new GameMenuItem
                 {
-                    yield return new GameMenuItem
-                    {
-                        // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
-                        MenuSection = "BackloggdStatus",
-                        Description = DefaultURL,
-                        Action = (arg1) => throw new NotImplementedException() //TODO: Action to set url in settings
-                    };
-                }
-                else
-                {
-                    yield return new GameMenuItem
-                    {
-                        // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
-                        MenuSection = "BackloggdStatus",
-                        Description = "Refresh Status",
-                        Action = (arg1) =>
-                        {
-                            game.GetStatus();
-                            SavePluginSettings(settings.Settings);
-                        }
-                    };
+                    // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
+                    MenuSection = "BackloggdStatus",
+                    Description = DefaultURL,
+                    Action = (arg1) => throw new NotImplementedException() // TODO: Action to set url in settings
+                };
 
-                    yield return new GameMenuItem
-                    {
-                        MenuSection = "BackloggdStatus",
-                        Description = "-"
-                    };
-
-
-                    foreach (string status in statusList)
-                    {
-                        yield return new GameMenuItem
-                        {
-                            // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
-                            MenuSection = "BackloggdStatus",
-                            Description = status,
-                            Action = (arg1) =>
-                            {
-                                backloggdClient.OpenWebView(game.URL);
-                                game.GetStatus();
-                                SavePluginSettings(settings.Settings);
-                                // TODO: Update Game Status when closing WebView
-                            }
-                        };
-                    }
-
-                    yield return new GameMenuItem
-                    {
-                        // Added into game context menu
-                        MenuSection = "BackloggdStatus",
-                        Description = "-"
-                    };
-
-                    // TODO: Add Menu Item for each potential status on Backloggd.com
-                    yield return new GameMenuItem
-                    {
-                        // Added into game context menu
-                        MenuSection = "BackloggdStatus",
-                        Description = "Set Status",
-                        Action = (arg1) => throw new NotImplementedException()
-                    };
-
-                    yield return new GameMenuItem
-                    {
-                        MenuSection = "BackloggdStatus",
-                        Description = "Open Backloggd Page",
-                        Action = (arg1) =>
-                        {
-                            backloggdClient.OpenWebView(game.URL);
-                            game.GetStatus();
-                            SavePluginSettings(settings.Settings);
-                        }
-                    };
-
-                    // TODO: Add Option to change Backloggd URL
-                    yield return new GameMenuItem
-                    {
-                        MenuSection = "BackloggdStatus",
-                        Description = "Change Backloggd Game",
-                        Action = (arg1) =>
-                        {
-                            backloggdClient.SetBackloggdUrl(game.GameName);
-                            game.GetStatus();
-                            SavePluginSettings(settings.Settings);
-                        }
-                    };
-                }
+                yield break;
             }
+
+            yield return new GameMenuItem
+            {
+                MenuSection = "BackloggdStatus",
+                Description = "Refresh Status",
+                Action = (arg1) =>
+                {
+                    game.GetStatus();
+                    SavePluginSettings(settings.Settings);
+                }
+            };
+
+            yield return new GameMenuItem
+            {
+                MenuSection = "BackloggdStatus",
+                Description = "-"
+            };
+
+
+            foreach (string status in statusList)
+            {
+                yield return new GameMenuItem
+                {
+                    // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
+                    MenuSection = "BackloggdStatus",
+                    Description = status,
+                    Action = (arg1) =>
+                    {
+                        backloggdClient.OpenWebView(game.URL);
+                        game.GetStatus();
+                        SavePluginSettings(settings.Settings);
+                        // TODO: Update Game Status when closing WebView
+                    }
+                };
+            }
+
+            yield return new GameMenuItem
+            {
+                // Added into game context menu
+                MenuSection = "BackloggdStatus",
+                Description = "-"
+            };
+
+            // TODO: Add Menu Item for each potential status on Backloggd.com
+            yield return new GameMenuItem
+            {
+                // Added into game context menu
+                MenuSection = "BackloggdStatus",
+                Description = "Set Status",
+                Action = (arg1) => throw new NotImplementedException()
+            };
+
+            yield return new GameMenuItem
+            {
+                MenuSection = "BackloggdStatus",
+                Description = "Open Backloggd Page",
+                Action = (arg1) =>
+                {
+                    backloggdClient.OpenWebView(game.URL);
+                    game.GetStatus();
+                    SavePluginSettings(settings.Settings);
+                }
+            };
+
+            // TODO: Add Option to change Backloggd URL
+            yield return new GameMenuItem
+            {
+                MenuSection = "BackloggdStatus",
+                Description = "Change Backloggd Game",
+                Action = (arg1) =>
+                {
+                    backloggdClient.SetBackloggdUrl(game.GameName);
+                    game.GetStatus();
+                    SavePluginSettings(settings.Settings);
+                }
+            };
+            
         }
 
 
@@ -286,6 +288,7 @@ namespace BackloggdStatus
                         StatusList = new List<string> { "Status: Unknown" },
                         StatusString = "Status: Unknown"
                     }).ToList();
+
                 SavePluginSettings(settings.Settings);
                 logger.Info("BackloggdURLs initialized and saved.");
             }
@@ -345,6 +348,7 @@ namespace BackloggdStatus
         // {
         //     // Add code to be executed when game is preparing to be started.
         // }
+
         public override void OnGameUninstalled(OnGameUninstalledEventArgs args)
         {
             // Add code to be executed when game is uninstalled.
