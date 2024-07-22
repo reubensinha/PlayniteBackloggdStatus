@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
+using NotImplementedException = System.NotImplementedException;
 
 namespace BackloggdStatus
 {
@@ -130,6 +131,8 @@ namespace BackloggdStatus
         public Guid GameId { get; set; }
         public string GameName { get; set; }
 
+        public string BackloggdName { get; set; }
+
         private string url;
         public string URL
         {
@@ -172,6 +175,7 @@ namespace BackloggdStatus
 
             URL = backloggdClient.SetBackloggdUrl(GameName);
             GetStatus();
+            GetName();
         }
 
         public void GetStatus()
@@ -188,6 +192,20 @@ namespace BackloggdStatus
             StatusList = backloggdClient.GetGameStatus(URL);
 
             FlattenStatus();
+        }
+
+        private void GetName()
+        {
+            if (URL == BackloggdStatus.DefaultURL)
+            {
+                BackloggdName = "Game has not been set";
+                return;
+            }
+
+            logger.Debug("Call GetName in BackloggdURLBinder");
+
+            GameName = backloggdClient.GetGameName(URL);
+            
         }
 
         private void FlattenStatus()

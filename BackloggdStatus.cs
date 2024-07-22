@@ -179,7 +179,12 @@ namespace BackloggdStatus
                     // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
                     MenuSection = "BackloggdStatus",
                     Description = DefaultURL,
-                    Action = (arg1) => throw new NotImplementedException() // TODO: Action to set url in settings
+                    Action = (arg1) =>
+                    {
+                        backloggdClient.SetBackloggdUrl(game.GameName);
+                        game.GetStatus();
+                        SavePluginSettings(settings.Settings);
+                    } // TODO: Action to set url in settings
                 };
 
                 yield break;
@@ -194,6 +199,13 @@ namespace BackloggdStatus
                     game.GetStatus();
                     SavePluginSettings(settings.Settings);
                 }
+            };
+
+            yield return new GameMenuItem
+            {
+                MenuSection = "BackloggdStatus",
+                Description = game.GameName,
+                Action = (arg1) => throw new NotImplementedException() // TODO: Display Game Name on Backloggd
             };
 
             yield return new GameMenuItem
@@ -216,6 +228,7 @@ namespace BackloggdStatus
                         game.GetStatus();
                         SavePluginSettings(settings.Settings);
                         // TODO: Update Game Status when closing WebView
+                        // TODO: Test above TODO 
                     }
                 };
             }

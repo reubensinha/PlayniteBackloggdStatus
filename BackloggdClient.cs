@@ -170,6 +170,89 @@ namespace BackloggdStatus
         }
 
 
+        public string GetGameName(string gameUrl)
+        {
+            string gameName;
+
+            if (verbose)
+            {
+                logger.Trace("Public GetGameName method called");
+            }
+
+            logger.Debug("Public GetGameName");
+
+            using (var webView = playniteApi.WebViews.CreateOffscreenView())
+            {
+                logger.Debug($"Opening WebView to: {gameUrl}");
+                gameName = GetGameName(webView, gameUrl).GetAwaiter().GetResult();
+            }
+
+            return gameName;
+        }
+
+        private async Task<string> GetGameName(IWebView webView, string url)
+        {
+            if (verbose)
+            {
+                logger.Trace("Private GetGameName method called");
+            }
+
+            logger.Debug("Private GetGameName");
+
+            var navigationCompleted = new TaskCompletionSource<bool>();
+
+            string gameName = "Could Not Find Game Name on Backloggd";
+
+            JavaScriptEvaluationResult result = null;
+            bool eventHandled = false;
+
+            webView.Navigate(url);
+
+
+            webView.LoadingChanged += async (s, e) =>
+            {
+                if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
+                {
+                    eventHandled = true;
+
+                    // TODO: Change JS script to get game name
+                    string script = @"
+                        JSON.stringify(Array.from(document.querySelectorAll('#buttons > .btn-play-fill')).map(el => el.className));
+                    ";
+
+                    logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
+
+                    try
+                    {
+                        result = await webView.EvaluateScriptAsync(script);
+
+
+                        if (result != null && result.Result != null)
+                        {
+                            // TODO: Change this to properly parse result once JS script is written.
+                            gameName = Serialization.FromJson<string>(result.Result.ToString());
+                        }
+
+                        navigationCompleted.SetResult(true);
+
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.Error($"Error in GetGameName: {exception.Message}");
+
+                        navigationCompleted.SetResult(false);
+                    }
+                }
+            };
+
+            await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
+
+
+
+            return gameName;
+        }
+
+
         /// <summary>
         /// Opens a WebView to given url.
         /// </summary>
