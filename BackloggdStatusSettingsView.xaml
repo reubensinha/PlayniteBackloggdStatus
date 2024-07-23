@@ -20,11 +20,16 @@
                       MaxHeight="400">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Game"
-                                        Width="150"
+                                        Width="100"
                                         Binding="{Binding GameName, Mode=OneWay}" />
 
                     <DataGridTextColumn Header="URL"
+                                        Width="150"
                                         Binding="{Binding URL}" />
+
+                    <DataGridTextColumn Header=""
+                                        Width="100"
+                                        Binding="{Binding BackloggdName, Mode=OneWay}" />
 
                     <DataGridTemplateColumn Header="Find URL">
                         <DataGridTemplateColumn.CellTemplate>

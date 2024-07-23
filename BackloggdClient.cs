@@ -49,7 +49,10 @@ namespace BackloggdStatus
             }
         }
 
-
+        /// <summary>
+        /// Takes a url string of a game on Backloggd.com
+        /// returns a list of all the statuses the user has set for that game.
+        /// </summary>
         public List<string> GetGameStatus(string gameUrl)
         {
             List<string> statusList;
@@ -89,6 +92,8 @@ namespace BackloggdStatus
 
             List<string> statusList = new List<string>();
             JavaScriptEvaluationResult result = null;
+
+            // This is to prevent the event from being called multiple times.
             bool eventHandled = false;
 
             webView.Navigate(url);
@@ -215,9 +220,8 @@ namespace BackloggdStatus
                 {
                     eventHandled = true;
 
-                    // TODO: Change JS script to get game name
                     string script = @"
-                        JSON.stringify(Array.from(document.querySelectorAll('#buttons > .btn-play-fill')).map(el => el.className));
+                        document.querySelector('#title > div.col-12.pr-0 > div > div > h1').textContent;
                     ";
 
                     logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
@@ -230,7 +234,7 @@ namespace BackloggdStatus
                         if (result != null && result.Result != null)
                         {
                             // TODO: Change this to properly parse result once JS script is written.
-                            gameName = Serialization.FromJson<string>(result.Result.ToString());
+                            gameName = result.Result.ToString();
                         }
 
                         navigationCompleted.SetResult(true);
@@ -255,6 +259,7 @@ namespace BackloggdStatus
 
         /// <summary>
         /// Opens a WebView to given url.
+        /// If no url is given, opens to Backloggd.com
         /// </summary>
         public void OpenWebView(string url = homeUrl)
         {

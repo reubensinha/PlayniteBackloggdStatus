@@ -127,11 +127,27 @@ namespace BackloggdStatus
     public class BackloggdURLBinder : ObservableObject
     {
         private static readonly ILogger logger = LogManager.GetLogger();
-        
-        public Guid GameId { get; set; }
-        public string GameName { get; set; }
 
-        public string BackloggdName { get; set; }
+        private Guid gameId;
+        public Guid GameId
+        {
+            get => gameId;
+            set => SetValue(ref gameId, value);
+        }
+
+        private string gameName;
+        public string GameName
+        {
+            get => gameName;
+            set => SetValue(ref gameName, value);
+        }
+
+        private string backloggdName;
+        public string BackloggdName
+        {
+            get => backloggdName;
+            set => SetValue(ref backloggdName, value);
+        }
 
         private string url;
         public string URL
@@ -166,7 +182,7 @@ namespace BackloggdStatus
         public BackloggdURLBinder()
         {
             OpenWebViewCommand = new RelayCommand(OpenWebView);
-            RefreshCommand = new RelayCommand(GetStatus);
+            RefreshCommand = new RelayCommand(RefreshStatus);
         }
 
         private void OpenWebView()
@@ -174,39 +190,28 @@ namespace BackloggdStatus
             logger.Debug("Call OpenWebView in BackloggdURLBinder");
 
             URL = backloggdClient.SetBackloggdUrl(GameName);
-            GetStatus();
-            GetName();
+            RefreshStatus();
         }
 
-        public void GetStatus()
+        public void RefreshStatus()
         {
             if (URL == BackloggdStatus.DefaultURL)
             {
                 StatusList = new List<string> { "Status: Unknown" };
+                BackloggdName = "Game has not been set";
                 FlattenStatus();
                 return;
             }
 
-            logger.Debug("Call GetStatus in BackloggdURLBinder");
+            logger.Debug("Call RefreshStatus in BackloggdURLBinder");
             
             StatusList = backloggdClient.GetGameStatus(URL);
+            GameName = backloggdClient.GetGameName(URL);
 
             FlattenStatus();
+
         }
 
-        private void GetName()
-        {
-            if (URL == BackloggdStatus.DefaultURL)
-            {
-                BackloggdName = "Game has not been set";
-                return;
-            }
-
-            logger.Debug("Call GetName in BackloggdURLBinder");
-
-            GameName = backloggdClient.GetGameName(URL);
-            
-        }
 
         private void FlattenStatus()
         {

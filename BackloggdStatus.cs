@@ -176,15 +176,14 @@ namespace BackloggdStatus
             {
                 yield return new GameMenuItem
                 {
-                    // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
                     MenuSection = "BackloggdStatus",
                     Description = DefaultURL,
                     Action = (arg1) =>
                     {
-                        backloggdClient.SetBackloggdUrl(game.GameName);
-                        game.GetStatus();
+                        game.URL = backloggdClient.SetBackloggdUrl(game.GameName);
+                        game.RefreshStatus();
                         SavePluginSettings(settings.Settings);
-                    } // TODO: Action to set url in settings
+                    }
                 };
 
                 yield break;
@@ -196,7 +195,7 @@ namespace BackloggdStatus
                 Description = "Refresh Status",
                 Action = (arg1) =>
                 {
-                    game.GetStatus();
+                    game.RefreshStatus();
                     SavePluginSettings(settings.Settings);
                 }
             };
@@ -204,8 +203,7 @@ namespace BackloggdStatus
             yield return new GameMenuItem
             {
                 MenuSection = "BackloggdStatus",
-                Description = game.GameName,
-                Action = (arg1) => throw new NotImplementedException() // TODO: Display Game Name on Backloggd
+                Description = game.BackloggdName //TODO: Test this: Display Game Name on Backloggd
             };
 
             yield return new GameMenuItem
@@ -219,16 +217,14 @@ namespace BackloggdStatus
             {
                 yield return new GameMenuItem
                 {
-                    // TODO: Bring up dialog with Game, Backloggd URL, and Backloggd Status
+                    // TODO: Remove Status from Backloggd when clicked
                     MenuSection = "BackloggdStatus",
                     Description = status,
                     Action = (arg1) =>
                     {
                         backloggdClient.OpenWebView(game.URL);
-                        game.GetStatus();
+                        game.RefreshStatus();
                         SavePluginSettings(settings.Settings);
-                        // TODO: Update Game Status when closing WebView
-                        // TODO: Test above TODO 
                     }
                 };
             }
@@ -240,7 +236,7 @@ namespace BackloggdStatus
                 Description = "-"
             };
 
-            // TODO: Add Menu Item for each potential status on Backloggd.com
+            // TODO: Add Menu Item for each potential status to set on Backloggd.com
             yield return new GameMenuItem
             {
                 // Added into game context menu
@@ -256,20 +252,19 @@ namespace BackloggdStatus
                 Action = (arg1) =>
                 {
                     backloggdClient.OpenWebView(game.URL);
-                    game.GetStatus();
+                    game.RefreshStatus();
                     SavePluginSettings(settings.Settings);
                 }
             };
 
-            // TODO: Add Option to change Backloggd URL
             yield return new GameMenuItem
             {
                 MenuSection = "BackloggdStatus",
                 Description = "Change Backloggd Game",
                 Action = (arg1) =>
                 {
-                    backloggdClient.SetBackloggdUrl(game.GameName);
-                    game.GetStatus();
+                    game.URL = backloggdClient.SetBackloggdUrl(game.GameName);
+                    game.RefreshStatus();
                     SavePluginSettings(settings.Settings);
                 }
             };
@@ -297,7 +292,8 @@ namespace BackloggdStatus
                     { 
                         GameId = game.Id,
                         GameName = game.Name,
-                        URL = DefaultURL, 
+                        URL = DefaultURL,
+                        BackloggdName = "Game has not been set",
                         StatusList = new List<string> { "Status: Unknown" },
                         StatusString = "Status: Unknown"
                     }).ToList();
