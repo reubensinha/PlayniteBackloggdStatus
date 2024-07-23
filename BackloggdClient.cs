@@ -57,11 +57,6 @@ namespace BackloggdStatus
         {
             List<string> statusList;
 
-            if (verbose)
-            {
-                logger.Trace("Public GetGameStatus method called");
-            }
-
             logger.Debug("Public GetGameStatus");
 
             using (var webView = playniteApi.WebViews.CreateOffscreenView())
@@ -74,18 +69,11 @@ namespace BackloggdStatus
             statusList = statusList.Select(SetStatusString).ToList();
 
 
-            logger.Debug($"StatusList has count: {statusList.Count} set to: {statusList} : {statusList.GetType()}");
-
             return statusList;
         }
 
         private async Task<List<string>> GetGameStatus(IWebView webView, string url)
         {
-            if (verbose)
-            {
-                logger.Trace("Private GetGameStatus method called");
-            }
-
             logger.Debug("Private GetGameStatus");
 
             var navigationCompleted = new TaskCompletionSource<bool>();
@@ -137,22 +125,11 @@ namespace BackloggdStatus
 
 
 
-            if (verbose)
-            {
-                logger.Trace("GetGameStatus method finished");
-            }
-
-
             return statusList;
         }
 
         private string SetStatusString(string status)
         {
-            if (verbose)
-            {
-                logger.Trace($"SetStatusString method called with {status}");
-            }
-
             logger.Debug("SetStatusString");
 
             Dictionary<string, string> statusMapper = new Dictionary<string, string>
@@ -175,34 +152,31 @@ namespace BackloggdStatus
         }
 
 
-        public string GetGameName(string gameUrl)
+        public string GetBackloggdName(string gameUrl)
         {
             string gameName;
 
-            if (verbose)
-            {
-                logger.Trace("Public GetGameName method called");
-            }
-
-            logger.Debug("Public GetGameName");
+            logger.Debug("Public GetBackloggdName");
 
             using (var webView = playniteApi.WebViews.CreateOffscreenView())
             {
                 logger.Debug($"Opening WebView to: {gameUrl}");
-                gameName = GetGameName(webView, gameUrl).GetAwaiter().GetResult();
+                gameName = GetBackloggdName(webView, gameUrl).GetAwaiter().GetResult();
             }
+
+            logger.Debug($"GameName set to {gameName}");
 
             return gameName;
         }
 
-        private async Task<string> GetGameName(IWebView webView, string url)
+        private async Task<string> GetBackloggdName(IWebView webView, string url)
         {
             if (verbose)
             {
-                logger.Trace("Private GetGameName method called");
+                logger.Trace("Private GetBackloggdName method called");
             }
 
-            logger.Debug("Private GetGameName");
+            logger.Debug("Private GetBackloggdName");
 
             var navigationCompleted = new TaskCompletionSource<bool>();
 
@@ -242,7 +216,7 @@ namespace BackloggdStatus
                     }
                     catch (Exception exception)
                     {
-                        logger.Error($"Error in GetGameName: {exception.Message}");
+                        logger.Error($"Error in GetBackloggdName: {exception.Message}");
 
                         navigationCompleted.SetResult(false);
                     }

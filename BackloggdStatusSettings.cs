@@ -206,7 +206,8 @@ namespace BackloggdStatus
             logger.Debug("Call RefreshStatus in BackloggdURLBinder");
             
             StatusList = backloggdClient.GetGameStatus(URL);
-            GameName = backloggdClient.GetGameName(URL);
+            BackloggdName = backloggdClient.GetBackloggdName(URL);
+
 
             FlattenStatus();
 
