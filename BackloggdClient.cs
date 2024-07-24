@@ -76,6 +76,10 @@ namespace BackloggdStatus
         {
             logger.Debug("Private GetGameStatus");
 
+            const string script = @"
+                        JSON.stringify(Array.from(document.querySelectorAll('#buttons > .btn-play-fill')).map(el => el.className));
+                    ";
+
             var navigationCompleted = new TaskCompletionSource<bool>();
 
             List<string> statusList = new List<string>();
@@ -92,10 +96,6 @@ namespace BackloggdStatus
                 if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
                 {
                     eventHandled = true;
-
-                    string script = @"
-                        JSON.stringify(Array.from(document.querySelectorAll('#buttons > .btn-play-fill')).map(el => el.className));
-                    ";
 
                     logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
 
@@ -178,6 +178,10 @@ namespace BackloggdStatus
 
             logger.Debug("Private GetBackloggdName");
 
+            const string script = @"
+                        document.querySelector('#title > div.col-12.pr-0 > div > div > h1').textContent;
+                    ";
+
             var navigationCompleted = new TaskCompletionSource<bool>();
 
             string gameName = "Could Not Find Game Name on Backloggd";
@@ -194,9 +198,6 @@ namespace BackloggdStatus
                 {
                     eventHandled = true;
 
-                    string script = @"
-                        document.querySelector('#title > div.col-12.pr-0 > div > div > h1').textContent;
-                    ";
 
                     logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
 
@@ -207,7 +208,6 @@ namespace BackloggdStatus
 
                         if (result != null && result.Result != null)
                         {
-                            // TODO: Change this to properly parse result once JS script is written.
                             gameName = result.Result.ToString();
                         }
 
@@ -296,30 +296,12 @@ namespace BackloggdStatus
                 logger.Trace("AcceptCookies method called");
             }
 
-            bool eventHandled = false;
-
-            webView.LoadingChanged += async (s, e) =>
-            {
-                if (!e.IsLoading && !eventHandled)
-                {
-                    eventHandled = true;
-
-                    string script = @"
+            const string script = @"
                         var acceptButton = document.querySelector('#cookie-banner-accept');
                         acceptButton.click();
                     ";
 
-                    try
-                    {
-                        await webView.EvaluateScriptAsync(script);
-                        logger.Debug("Cookies Accepted");
-                    }
-                    catch (Exception exception)
-                    {
-                        logger.Error(exception.Message);
-                    }
-                }
-            };
+            ExecuteScript(webView, script);
         }
 
         /// <summary>
@@ -352,6 +334,10 @@ namespace BackloggdStatus
                 logger.Trace("Private CheckLogin method called");
             }
 
+            const string script = @"
+                        document.querySelector('#mobile-user-nav > div:nth-child(3) > a') !== null;
+                    ";
+
             JavaScriptEvaluationResult result = null;
 
             logger.Debug("Private CheckLogin");
@@ -367,9 +353,7 @@ namespace BackloggdStatus
                 {
                     eventHandled = true;
                     // This Menu is the sign-out box which only appears when user is logged in.
-                    const string script = @"
-                        document.querySelector('#mobile-user-nav > div:nth-child(3) > a') !== null;
-                    ";
+                    
 
 
                     logger.Debug("In webView.LoadingChanged - CheckLogin method");
@@ -424,6 +408,36 @@ namespace BackloggdStatus
                 logger.Trace("CheckLogin method finished");
             }
         }
+
+
+        private void ExecuteScript(IWebView webView, string script)
+        {
+            if (verbose)
+            {
+                logger.Trace("AcceptCookies method called");
+            }
+
+            bool eventHandled = false;
+
+            webView.LoadingChanged += async (s, e) =>
+            {
+                if (!e.IsLoading && !eventHandled)
+                {
+                    eventHandled = true;
+
+                    try
+                    {
+                        await webView.EvaluateScriptAsync(script);
+                        logger.Debug("Cookies Accepted");
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.Error(exception.Message);
+                    }
+                }
+            };
+        }
+
 
         public string SetBackloggdUrl(string name = null)
         {
