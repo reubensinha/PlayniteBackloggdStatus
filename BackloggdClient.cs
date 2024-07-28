@@ -30,6 +30,22 @@ namespace BackloggdStatus
 
         private const string homeUrl = "https://www.backloggd.com";
 
+        private readonly Dictionary<string, string> statusMapper = new Dictionary<string, string>
+        {
+            { "wishlist-btn-container", "Wishlist" },
+            { "backlog-btn-container", "Backlog" },
+            { "playing-btn-container", "Playing" },
+            { "play-btn-container", "Played" } // TODO: Find What type of 'played' status this is.
+        };
+
+        private readonly Dictionary<string, string> buttonMapper = new Dictionary<string, string>
+        {
+            { "Wishlist", "#wishlist-122 > button" },
+            { "Backlog", "#backlog-122 > button" },
+            { "Playing", "#playing-122 > button" },
+            { "Played", "#play-122 > button" } // TODO: Handle specific 'played' status.
+        };
+
 
         /// <summary>
         /// Deletes all cookies from Backloggd.com
@@ -131,14 +147,6 @@ namespace BackloggdStatus
         private string SetStatusString(string status)
         {
             logger.Debug("SetStatusString");
-
-            Dictionary<string, string> statusMapper = new Dictionary<string, string>
-            {
-                { "wishlist-btn-container", "Status: Wishlist" },
-                { "backlog-btn-container", "Status: Backlog" },
-                { "playing-btn-container", "Status: Playing" },
-                { "play-btn-container", "Status: Played" } // TODO: Find What type of 'played' status this is.
-            };
 
             foreach (var key in statusMapper.Keys)
             {
@@ -334,6 +342,7 @@ namespace BackloggdStatus
                 logger.Trace("Private CheckLogin method called");
             }
 
+            // This Menu is the sign-out box which only appears when user is logged in.
             const string script = @"
                         document.querySelector('#mobile-user-nav > div:nth-child(3) > a') !== null;
                     ";
@@ -352,10 +361,7 @@ namespace BackloggdStatus
                 if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
                 {
                     eventHandled = true;
-                    // This Menu is the sign-out box which only appears when user is logged in.
                     
-
-
                     logger.Debug("In webView.LoadingChanged - CheckLogin method");
                     logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
 
@@ -410,32 +416,67 @@ namespace BackloggdStatus
         }
 
 
+        public void ToggleStatus(string gameURL, string status)
+        {
+            if (verbose)
+            {
+                logger.Trace("ToggleStatus method called");
+            }
+
+            // TODO: Played status needs separate script.
+
+            string script = $@"
+                        var button = document.querySelector('{ buttonMapper[status] }');
+                        button.click();
+                    ";
+
+
+            using (var webView = playniteApi.WebViews.CreateOffscreenView())
+            {
+                webView.Navigate(gameURL);
+                ExecuteScript(webView, script);
+            }
+
+            
+        }
+
+
         private void ExecuteScript(IWebView webView, string script)
         {
             if (verbose)
             {
-                logger.Trace("AcceptCookies method called");
+                logger.Trace("ExecuteScript method called");
             }
 
             bool eventHandled = false;
+            var navigationCompleted = new TaskCompletionSource<bool>();
 
             webView.LoadingChanged += async (s, e) =>
             {
-                if (!e.IsLoading && !eventHandled)
+                if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
                 {
                     eventHandled = true;
+                    logger.Debug("In ExecuteScript LoadingChanged method");
 
                     try
                     {
                         await webView.EvaluateScriptAsync(script);
-                        logger.Debug("Cookies Accepted");
+
+                        logger.Debug($"Executing Script {script} at: {webView.GetCurrentAddress()}");
+
+                        navigationCompleted.SetResult(true);
                     }
                     catch (Exception exception)
                     {
                         logger.Error(exception.Message);
+
+                        navigationCompleted.SetResult(true);
                     }
                 }
             };
+
+            navigationCompleted.Task.Wait();
+            // await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
         }
 
 
@@ -482,6 +523,5 @@ namespace BackloggdStatus
 
             return url;
         }
-
     }
 }

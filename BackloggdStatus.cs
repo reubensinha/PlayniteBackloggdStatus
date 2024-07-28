@@ -222,7 +222,7 @@ namespace BackloggdStatus
                     Description = status,
                     Action = (arg1) =>
                     {
-                        backloggdClient.OpenWebView(game.URL);
+                        backloggdClient.ToggleStatus(game.URL, status);
                         game.RefreshStatus();
                         SavePluginSettings(settings.Settings);
                     }
@@ -241,8 +241,51 @@ namespace BackloggdStatus
             {
                 // Added into game context menu
                 MenuSection = "BackloggdStatus",
-                Description = "Set Status",
-                Action = (arg1) => throw new NotImplementedException()
+                Description = "Played",
+                Action = (arg1) =>
+                {
+                    backloggdClient.ToggleStatus(game.URL, "Played"); // TODO: Determine type of played
+                    game.RefreshStatus();
+                    SavePluginSettings(settings.Settings);
+                }
+            };
+
+            yield return new GameMenuItem
+            {
+                // Added into game context menu
+                MenuSection = "BackloggdStatus",
+                Description = "Playing",
+                Action = (arg1) => 
+                {
+                    backloggdClient.ToggleStatus(game.URL, "Playing");
+                    game.RefreshStatus();
+                    SavePluginSettings(settings.Settings);
+                }
+            };
+
+            yield return new GameMenuItem
+            {
+                // Added into game context menu
+                MenuSection = "BackloggdStatus",
+                Description = "Backlog",
+                Action = (arg1) =>
+                {
+                    backloggdClient.ToggleStatus(game.URL, "Backlog");
+                    game.RefreshStatus();
+                    SavePluginSettings(settings.Settings);
+                }
+            };
+
+            yield return new GameMenuItem
+            {
+                // Added into game context menu
+                MenuSection = "BackloggdStatus",
+                Description = "Wishlist",
+                Action = (arg1) =>
+                {
+                    backloggdClient.ToggleStatus(game.URL, "Wishlist"); 
+                    game.RefreshStatus(); SavePluginSettings(settings.Settings);
+                }
             };
 
             yield return new GameMenuItem

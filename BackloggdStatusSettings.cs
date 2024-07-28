@@ -220,7 +220,7 @@ namespace BackloggdStatus
 
             foreach (string status in StatusList)
             {
-                StatusString += status.Substring(8) + ", ";
+                StatusString += status + ", ";
             }
 
         }
