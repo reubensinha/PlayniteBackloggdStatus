@@ -6,54 +6,8 @@
              mc:Ignorable="d"
              d:DesignHeight="400" d:DesignWidth="600">
     <StackPanel>
-        <TextBlock Text="Description for Option1:"/>
-        <TextBox Text="{Binding Settings.Option1}"/>
-        <TextBlock Text="Description for Option2:"/>
-        <CheckBox IsChecked="{Binding Settings.Option2}"/>
-
         <TextBlock Text="List of Games" />
 
-        <Grid>
-            <DataGrid Name="GameGrid"
-                      ItemsSource="{Binding Settings.BackloggdURLs}"
-                      AutoGenerateColumns="False"
-                      MaxHeight="400">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Game"
-                                        Width="100"
-                                        Binding="{Binding GameName, Mode=OneWay}" />
-
-                    <DataGridTextColumn Header="URL"
-                                        Width="150"
-                                        Binding="{Binding URL}" />
-
-                    <DataGridTextColumn Header=""
-                                        Width="100"
-                                        Binding="{Binding BackloggdName, Mode=OneWay}" />
-
-                    <DataGridTemplateColumn Header="Find URL">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Button Content="Open WebView"
-                                        Command="{Binding OpenWebViewCommand}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-
-                    <DataGridTemplateColumn Header="Refresh Status">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Button Content="Refresh Status"
-                                        Command="{Binding RefreshCommand}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-
-                    <DataGridTextColumn Header="Status"
-                                        Binding="{Binding StatusString, Mode=OneWay}" />
-
-                </DataGrid.Columns>
-            </DataGrid>
-        </Grid>
+        
     </StackPanel>
 </UserControl>

@@ -32,10 +32,10 @@ namespace BackloggdStatus
 
         private readonly Dictionary<string, string> statusMapper = new Dictionary<string, string>
         {
-            { "wishlist-btn-container", "Wishlist" },
-            { "backlog-btn-container", "Backlog" },
-            { "playing-btn-container", "Playing" },
-            { "play-btn-container", "Played" } // TODO: Find What type of 'played' status this is.
+            { "wishlist-btn-container", "wishlist" },
+            { "backlog-btn-container", "backlog" },
+            { "playing-btn-container", "playing" },
+            { "play-btn-container", "played" } // TODO: Find What type of 'played' status this is.
         };
 
         private readonly Dictionary<string, string> buttonMapper = new Dictionary<string, string>
@@ -156,7 +156,7 @@ namespace BackloggdStatus
                 }
             }
 
-            return "Status: Not Set";
+            return "Unknown";
         }
 
 
@@ -328,11 +328,6 @@ namespace BackloggdStatus
             {
                 CheckLogin(webView).GetAwaiter().GetResult();
             }
-
-            // Refresh Main Menu
-            // playniteApi.Database.BeginBufferUpdate();
-            // playniteApi.Database.EndBufferUpdate();
-
         }
 
         private async Task CheckLogin(IWebView webView)
