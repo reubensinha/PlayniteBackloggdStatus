@@ -293,9 +293,7 @@ namespace BackloggdStatus
                 MenuSection = "BackloggdStatus",
                 Description = "-"
             };
-
-            // TODO: Toggle Status isn't working. Fix it.
-
+            
             yield return new GameMenuItem
             {
                 // Added into game context menu
@@ -303,9 +301,10 @@ namespace BackloggdStatus
                 Description = "Played",
                 Action = (arg1) =>
                 {
-                    backloggdClient.ToggleStatus(metadataLink.Url, "Played"); // TODO: Determine type of played
-                    game.RefreshStatus();
-                    SavePluginSettings(settings.Settings);
+                    // backloggdClient.ToggleStatus(metadataLink.Url, "Played"); // TODO: Determine type of played
+                    // game.RefreshStatus();
+                    // SavePluginSettings(settings.Settings);
+                    PlayniteApi.Dialogs.ShowMessage("Played status not implemented.");;
                 }
             };
 
@@ -437,7 +436,12 @@ namespace BackloggdStatus
                         GameId = databaseGame.Id
                     });
                     logger.Info("Game not found in BackloggdURLs. Added to BackloggdURLs.");
+
+                    game = settings.Settings.BackloggdURLs.First(x => x.GameId == databaseGame.Id);
                 }
+
+                // TODO: Idk if this is working.
+                game.RefreshStatus();
 
             }
 

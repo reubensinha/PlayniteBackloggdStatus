@@ -186,7 +186,6 @@ namespace BackloggdStatus
             logger.Debug("Call RefreshStatus in BackloggdURLBinder");
             BackloggdName = backloggdClient.GetBackloggdName(gameURL.Url);
             
-            // TODO: Redo status list and setting status bools
             var status = backloggdClient.GetGameStatus(gameURL.Url);
 
             SetStatus(status);
@@ -194,6 +193,11 @@ namespace BackloggdStatus
 
         private void SetStatus(List<string> status)
         {
+            Wishlist = false;
+            Backlog = false;
+            Playing = false;
+            Played = null;
+
             foreach (string s in status)
             {
                 switch (s)
