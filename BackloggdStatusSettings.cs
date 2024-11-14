@@ -176,6 +176,7 @@ namespace BackloggdStatus
         public void RefreshStatus()
         {
             Game game = PlayniteApiProvider.Api.Database.Games.Get(GameId);
+            // TODO: There was an exception here. Look into it.
             Link gameURL = game.Links.FirstOrDefault(link => link.Url.Contains("https://www.backloggd.com/games"));
             if (gameURL == null)
             {
@@ -228,7 +229,7 @@ namespace BackloggdStatus
                         break;
                     default:
                         logger.Error("Unrecognized Status");
-                        throw new Exception("Attempted to save unrecognized status.");
+                        throw new Exception($"Attempted to save unrecognized status. { s }");
                         break;
                 }
             }

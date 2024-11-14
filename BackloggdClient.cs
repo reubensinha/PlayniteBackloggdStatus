@@ -34,21 +34,26 @@ namespace BackloggdStatus
         {
             { "wishlist-btn-container", "wishlist" },
             { "backlog-btn-container", "backlog" },
-            { "playing-btn-container", "playing" },
-            { "play-btn-container", "played" } // TODO: Find What type of 'played' status this is.
+            { "playing-btn-container", "playing" }
         };
 
         private readonly Dictionary<string, string> buttonMapper = new Dictionary<string, string>
         {
-            { "Wishlist", "#wishlist-122 > button" },
-            { "Backlog", "#backlog-122 > button" },
-            { "Playing", "#playing-122 > button" },
-            { "Played", "#play-122 > button" } // TODO: Handle specific 'played' status.
+            { "Wishlist", "3" },
+            { "Backlog", "2" },
+            { "Playing", "1" },
+            { "Played", "0" },
+            { "Completed", "0" },
+            { "Retired", "0" },
+            { "Shelved", "0" },
+            { "Abandoned", "0" },
+            { "Unplayed", "0" }
         };
 
 
         /// <summary>
         /// Deletes all cookies from Backloggd.com
+        /// Logs out of Backloggd.com
         /// </summary>
         private void DeleteCookies()
         {
@@ -72,6 +77,7 @@ namespace BackloggdStatus
         public List<string> GetGameStatus(string gameUrl)
         {
             List<string> statusList;
+            string playStatus;
 
             logger.Debug("Public GetGameStatus");
 
@@ -79,11 +85,16 @@ namespace BackloggdStatus
             {
                 logger.Debug($"Opening WebView to: {gameUrl}");
                 statusList = GetGameStatus(webView, gameUrl).GetAwaiter().GetResult();
+                playStatus = GetPlayedStatus(webView, gameUrl).GetAwaiter().GetResult();
             }
 
 
             statusList = statusList.Select(SetStatusString).ToList();
 
+            if (playStatus != null)
+            {
+                statusList.Add(playStatus);
+            }
 
             return statusList;
         }
@@ -95,7 +106,7 @@ namespace BackloggdStatus
             const string script = @"
                         JSON.stringify(Array.from(document.querySelectorAll('#buttons > .btn-play-fill')).map(el => el.className));
                     ";
-
+            
             var navigationCompleted = new TaskCompletionSource<bool>();
 
             List<string> statusList = new List<string>();
@@ -142,6 +153,63 @@ namespace BackloggdStatus
 
 
             return statusList;
+        }
+
+        private async Task<string> GetPlayedStatus(IWebView webView, string url)
+        {
+            logger.Debug("Private GetGameStatus");
+
+            const string script = @"
+                        JSON.stringify(document.getElementsByClassName('button-link btn-play mx-auto')[0].getAttribute('play_type'));
+                    ";
+
+
+            var navigationCompleted = new TaskCompletionSource<bool>();
+
+            string playStatus = "";
+            JavaScriptEvaluationResult result = null;
+
+            // This is to prevent the event from being called multiple times.
+            bool eventHandled = false;
+
+            webView.Navigate(url);
+
+
+            webView.LoadingChanged += async (s, e) =>
+            {
+                if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
+                {
+                    eventHandled = true;
+
+                    logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
+
+                    try
+                    {
+                        result = await webView.EvaluateScriptAsync(script);
+
+
+                        if (result != null && result.Result != null)
+                        {
+                            playStatus = Serialization.FromJson<string>(result.Result.ToString());
+                        }
+
+                        navigationCompleted.SetResult(true);
+
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.Error($"Error in GetGameStatus: {exception.Message}");
+
+                        navigationCompleted.SetResult(false);
+                    }
+                }
+            };
+
+            await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
+
+
+
+            return playStatus;
         }
 
         private string SetStatusString(string status)
@@ -418,12 +486,56 @@ namespace BackloggdStatus
                 logger.Trace("ToggleStatus method called");
             }
 
-            // TODO: Played status needs separate script.
+            string script;
 
-            string script = $@"
-                        var button = document.querySelector('{ buttonMapper[status] }');
-                        button.click();
-                    ";
+            if (buttonMapper[status] != "0")
+            {
+                script = $"document.getElementsByClassName('button-link btn-play mx-auto')[{ buttonMapper[status] }].click();";
+            }
+            else
+            {
+                switch (status)
+                {
+                    case "Played":
+                        script = @"
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.querySelector('#played').click();";
+                        break;
+                    case "Completed":
+                        script = @"
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.querySelector('#completed').click();";
+                        break;
+                    case "Retired":
+                        script = @"
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.querySelector('#retired').click();";
+                        break;
+                    case "Shelved":
+                        script = @"
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.querySelector('#shelved').click();";
+                        break;
+                    case "Abandoned":
+                        script = @"
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.querySelector('#abandoned').click();";
+                        break;
+                    default:
+                        // Deselect Played
+                        script = @"
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                            document.querySelector('#unset-played-btn').click();";
+                        break;
+                }
+
+            }
 
 
             using (var webView = playniteApi.WebViews.CreateOffscreenView())

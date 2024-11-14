@@ -28,11 +28,6 @@ namespace BackloggdStatus
         private const bool debug = true;
         private const bool verbose = true;
 
-        /*
-            TODO: Backloggd and IGDB have the same URL extension for games. Might be useful.
-            Maybe use IGDB api to speed up process of searching for things such as finding game urls?
-            Does not help with setting play statuses.
-        */
         public const string DefaultURL = "URL not Set";
 
         private readonly BackloggdClient backloggdClient;
@@ -167,7 +162,6 @@ namespace BackloggdStatus
 
             BackloggdURLBinder game = settings.Settings.BackloggdURLs.First(x => x.GameId == args.Games[0].Id);
 
-
             if (!backloggdClient.LoggedIn)
             {
                 yield return new GameMenuItem
@@ -232,12 +226,12 @@ namespace BackloggdStatus
                 yield return new GameMenuItem
                 {
                     MenuSection = "BackloggdStatus",
-                    Description = "Played",
+                    Description = game.Played.ToString(),
                     Action = (arg1) =>
                     {
-                        // backloggdClient.ToggleStatus(metadataLink.Url, "Played");
-                        // game.RefreshStatus();
-                        // SavePluginSettings(settings.Settings);
+                        backloggdClient.ToggleStatus(metadataLink.Url, "Unplayed");
+                        game.RefreshStatus();
+                        SavePluginSettings(settings.Settings);
                     }
                 };
             }
@@ -293,18 +287,69 @@ namespace BackloggdStatus
                 MenuSection = "BackloggdStatus",
                 Description = "-"
             };
-            
+
             yield return new GameMenuItem
             {
                 // Added into game context menu
-                MenuSection = "BackloggdStatus | Toggle Status",
+                MenuSection = "BackloggdStatus | Toggle Status | Played",
                 Description = "Played",
                 Action = (arg1) =>
                 {
-                    // backloggdClient.ToggleStatus(metadataLink.Url, "Played"); // TODO: Determine type of played
-                    // game.RefreshStatus();
-                    // SavePluginSettings(settings.Settings);
-                    PlayniteApi.Dialogs.ShowMessage("Played status not implemented.");;
+                    backloggdClient.ToggleStatus(metadataLink.Url, "Played");
+                    game.RefreshStatus();
+                    SavePluginSettings(settings.Settings);
+                }
+            };
+
+            yield return new GameMenuItem
+            {
+                // Added into game context menu
+                MenuSection = "BackloggdStatus | Toggle Status | Played",
+                Description = "Completed",
+                Action = (arg1) =>
+                {
+                    backloggdClient.ToggleStatus(metadataLink.Url, "Completed");
+                    game.RefreshStatus();
+                    SavePluginSettings(settings.Settings);
+                }
+            };
+
+            yield return new GameMenuItem
+            {
+                // Added into game context menu
+                MenuSection = "BackloggdStatus | Toggle Status | Played",
+                Description = "Retired",
+                Action = (arg1) =>
+                {
+                    backloggdClient.ToggleStatus(metadataLink.Url, "Retired");
+                    game.RefreshStatus();
+                    SavePluginSettings(settings.Settings);
+                }
+            };
+
+            yield return new GameMenuItem
+            {
+                // Added into game context menu
+                MenuSection = "BackloggdStatus | Toggle Status | Played",
+                Description = "Shelved",
+                Action = (arg1) =>
+                {
+                    backloggdClient.ToggleStatus(metadataLink.Url, "Shelved");
+                    game.RefreshStatus();
+                    SavePluginSettings(settings.Settings);
+                }
+            };
+
+            yield return new GameMenuItem
+            {
+                // Added into game context menu
+                MenuSection = "BackloggdStatus | Toggle Status | Played",
+                Description = "Abandoned",
+                Action = (arg1) =>
+                {
+                    backloggdClient.ToggleStatus(metadataLink.Url, "Abandoned");
+                    game.RefreshStatus();
+                    SavePluginSettings(settings.Settings);
                 }
             };
 
