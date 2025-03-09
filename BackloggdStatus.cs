@@ -13,6 +13,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;   
 using System.Windows.Controls;
+using System.Collections.Specialized;
 
 
 namespace BackloggdStatus
@@ -25,8 +26,8 @@ namespace BackloggdStatus
         private BackloggdStatusSettingsViewModel settings { get; set; }
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
 
-        private const bool debug = true;
-        private const bool verbose = true;
+        private const bool debug = false;
+        private const bool verbose = false;
 
         public const string DefaultURL = "URL not Set";
 
@@ -187,6 +188,7 @@ namespace BackloggdStatus
                         if (url.Contains("https://www.backloggd.com/games"))
                         {
                             args.Games[0].Links.Add(new Link("Backloggd", url));
+                            PlayniteApi.Database.Games.Update(args.Games[0]);
                         }
                         game.RefreshStatus();
                         SavePluginSettings(settings.Settings);
@@ -220,7 +222,6 @@ namespace BackloggdStatus
                 Description = "-"
             };
 
-            // TODO: Played status has special rules. Implement them.
             if (game.Played != null)
             {
                 yield return new GameMenuItem
@@ -437,8 +438,6 @@ namespace BackloggdStatus
         public override void OnGameInstalled(OnGameInstalledEventArgs args)
         {
             // Add code to be executed when game is finished installing.
-            // TODO: If not in Backloggd library, set Backloggd status to Backlog
-            // TODO: Add to BackloggdURLs
             
         }
 
@@ -485,7 +484,6 @@ namespace BackloggdStatus
                     game = settings.Settings.BackloggdURLs.First(x => x.GameId == databaseGame.Id);
                 }
 
-                // TODO: Idk if this is working.
                 game.RefreshStatus();
 
             }

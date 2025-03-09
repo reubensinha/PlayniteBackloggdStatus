@@ -1,7 +1,10 @@
 ﻿Id: BackloggdStatus_228e1135-a326-4a8d-8ee9-edc1c61c0982
 Name: Backloggd Status
 Author: Reuben Sinha
-Version: 0.0.1
+Version: 1.0.0
 Module: BackloggdStatus.dll
 Type: GenericPlugin
 Icon: icon.png
+Links:
+    - Name: GitHub
+      Url: https://github.com/reubensinha/PlayniteBackloggdStatus

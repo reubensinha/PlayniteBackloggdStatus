@@ -1,0 +1,29 @@
+AddonId: ExtraMetadataLoader_705fdbca-e1fc-4004-b839-1d040b8b4429
+Type: Generic
+Name: Backloggd Status
+Author: reubensinha
+ShortDescription: Allows you to update your Backloggd status from within Playnite.
+InstallerManifestUrl: # TODO: URL to InstallerManifest on GitHub
+SourceUrl: # TODO: URL to Source Code on GitHub
+Description: |-
+    Provides extensive functionality to download and download logos and videos in compatible custom themes, including:
+    - Display logos
+    - Display and play videos and micro videos
+    - Support to download videos from different sources, including Steam and YouTube
+    - Support to stream videos from Steam
+    - Support to download logos from different sources, including Steam, SteamGridDB and Google
+    - Extensive settings to configure extension functionality, like configuring automatic download of Extra Metadata media, configure behavior and functionality of controls to display them, etc
+Tags: ["Generic", "Metadata", "Logos", "Video", "Steam", "YouTube", "SteamGridDB", "SGDB"]
+Links:
+    GitHub: https://github.com/darklinkpower/PlayniteExtensionsCollection
+    Help and Troubleshooting: https://github.com/darklinkpower/PlayniteExtensionsCollection/wiki/Extra-Metadata-Loader
+    Issues Tracker: https://github.com/darklinkpower/PlayniteExtensionsCollection/issues?q=is%3Aopen+is%3Aissue+label%3AExtraMetadataLoader
+    Support (Discord): https://discord.com/channels/365863063296933888/808419165311467630
+    Translate: https://crowdin.com/project/darklinkpower-playnite-extensi
+    Ko-fi (Tips and Donations): https://ko-fi.com/darklinkpower
+IconUrl: https://raw.githubusercontent.com/darklinkpower/PlayniteExtensionsCollection/master/source/Generic/ExtraMetadataLoader/icon.png
+Screenshots:
+    - Thumbnail: https://github.com/darklinkpower/Helium/raw/master/screenshots/thumb_01.jpg
+      Image: https://github.com/darklinkpower/Helium/raw/master/screenshots/screenshot_01.jpg
+    - Thumbnail: https://github.com/darklinkpower/Helium/raw/master/screenshots/thumb_02.jpg
+      Image: https://github.com/darklinkpower/Helium/raw/master/screenshots/screenshot_02.jpg

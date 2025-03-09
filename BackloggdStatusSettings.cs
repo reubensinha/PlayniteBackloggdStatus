@@ -128,21 +128,21 @@ namespace BackloggdStatus
         public bool Wishlist
         {
             get => wishlist;
-            set => SetValue(ref wishlist, value);
+            private set => SetValue(ref wishlist, value);
         }
 
         private bool backlog = false;
         public bool Backlog
         {
             get => backlog;
-            set => SetValue(ref backlog, value);
+            private set => SetValue(ref backlog, value);
         }
 
         private bool playing = false;
         public bool Playing
         {
             get => playing;
-            set => SetValue(ref playing, value);
+            private set => SetValue(ref playing, value);
         }
 
         public enum PlayedStatus
@@ -158,7 +158,7 @@ namespace BackloggdStatus
         public PlayedStatus? Played
         {
             get => played;
-            set => SetValue(ref played, value);
+            private set => SetValue(ref played, value);
         }
 
 
@@ -166,7 +166,7 @@ namespace BackloggdStatus
         public string BackloggdName
         {
             get => backloggdName;
-            set => SetValue(ref backloggdName, value);
+            private set => SetValue(ref backloggdName, value);
         }
 
         [DontSerialize]
@@ -177,12 +177,23 @@ namespace BackloggdStatus
         {
             Game game = PlayniteApiProvider.Api.Database.Games.Get(GameId);
             // TODO: There was an exception here. Look into it.
-            Link gameURL = game.Links.FirstOrDefault(link => link.Url.Contains("https://www.backloggd.com/games"));
+            Link gameURL;
+            try
+            {
+                gameURL = game.Links.FirstOrDefault(link => link.Url.Contains("https://www.backloggd.com/games"));
+            }
+            catch (ArgumentNullException e)
+            {
+                gameURL = null;
+            }
+            
             if (gameURL == null)
             {
                 URLSet = false;
                 return;
             }
+
+            URLSet = true;
 
             logger.Debug("Call RefreshStatus in BackloggdURLBinder");
             BackloggdName = backloggdClient.GetBackloggdName(gameURL.Url);

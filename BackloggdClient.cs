@@ -34,7 +34,8 @@ namespace BackloggdStatus
         {
             { "wishlist-btn-container", "wishlist" },
             { "backlog-btn-container", "backlog" },
-            { "playing-btn-container", "playing" }
+            { "playing-btn-container", "playing" },
+            { "play-btn-container", "played" }
         };
 
         private readonly Dictionary<string, string> buttonMapper = new Dictionary<string, string>
@@ -91,9 +92,10 @@ namespace BackloggdStatus
 
             statusList = statusList.Select(SetStatusString).ToList();
 
+            // Played Status is always first in the list.
             if (playStatus != null)
             {
-                statusList.Add(playStatus);
+                statusList[0] = playStatus;
             }
 
             return statusList;
@@ -124,7 +126,7 @@ namespace BackloggdStatus
                 {
                     eventHandled = true;
 
-                    logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
+                    logger.Debug($"Executing Script: {script} at: {webView.GetCurrentAddress()}");
 
                     try
                     {
@@ -157,7 +159,7 @@ namespace BackloggdStatus
 
         private async Task<string> GetPlayedStatus(IWebView webView, string url)
         {
-            logger.Debug("Private GetGameStatus");
+            logger.Debug("Private GetPlayedStatus");
 
             const string script = @"
                         JSON.stringify(document.getElementsByClassName('button-link btn-play mx-auto')[0].getAttribute('play_type'));
@@ -499,32 +501,47 @@ namespace BackloggdStatus
                     case "Played":
                         script = @"
                             document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.querySelector('#played').click();";
+                            timeoutId = setTimeout(function(){
+                                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                                document.querySelector('#played').click();
+                            },5000);
+                            clearTimeout(timeoutID);";
                         break;
                     case "Completed":
                         script = @"
                             document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.querySelector('#completed').click();";
+                            timeoutId = setTimeout(function(){
+                                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                                document.querySelector('#completed').click();
+                            },3000);
+                            clearTimeout(timeoutID);";
                         break;
                     case "Retired":
                         script = @"
                             document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.querySelector('#retired').click();";
+                            timeoutId = setTimeout(function(){
+                                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                                document.querySelector('#retired').click();
+                            },3000);
+                            clearTimeout(timeoutID);";
                         break;
                     case "Shelved":
                         script = @"
                             document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.querySelector('#shelved').click();";
+                            timeoutId = setTimeout(function(){
+                                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                                document.querySelector('#shelved').click();
+                            },3000);
+                            clearTimeout(timeoutID);";
                         break;
                     case "Abandoned":
                         script = @"
                             document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.querySelector('#abandoned').click();";
+                            timeoutId = setTimeout(function(){
+                                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                                document.querySelector('#abandoned').click();
+                            },3000);
+                            clearTimeout(timeoutID);";
                         break;
                     default:
                         // Deselect Played
@@ -623,8 +640,6 @@ namespace BackloggdStatus
                 {
                     url = webView.GetCurrentAddress();
 
-                    // TODO: I don't think this is necessary? But I had it in before. Plz Verify
-                    // webView.Close();
                 }
             }
 
