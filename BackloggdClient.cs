@@ -1,25 +1,19 @@
 ﻿using Playnite.SDK;
-using Playnite.SDK.Events;
-using Playnite.SDK.Models;
-using Playnite.SDK.Plugins;
 using Playnite.SDK.Data;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Eventing.Reader;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Controls;
-using System.Security.Policy;
 
 namespace BackloggdStatus
 {
     public class BackloggdClient
     {
         private readonly IPlayniteAPI playniteApi = PlayniteApiProvider.Api;
-        private readonly ILogger logger = LogManager.GetLogger();
+        private static readonly ILogger logger = LogManager.GetLogger();
+        private readonly IWebView webView;
+        private const string loginUrl = @"https://www.backloggd.com/users/sign_in";
+        private const string logoutUrl = @"https://www.backloggd.com/users/sign_out";
 
 
         public bool LoggedIn { get; private set; }
@@ -50,6 +44,37 @@ namespace BackloggdStatus
             { "Abandoned", "0" },
             { "Unplayed", "0" }
         };
+
+        public BackloggdClient(IWebView webView)
+        {
+            this.webView = webView;
+        }
+
+        /// <summary>
+        /// Opens the Backloggd.com login page and stores login cookies.
+        /// </summary>
+        public void Login()
+        {
+            if (verbose)
+            {
+                logger.Trace("Login method called");
+            }
+
+            webView.LoadingChanged += (s, e) =>
+            {
+                if (CheckLogin())
+                {
+                    webView.Close();
+                }
+            };
+
+            webView.DeleteDomainCookies(".humblebundle.com");
+            webView.DeleteDomainCookies("www.humblebundle.com");
+            webView.Navigate(loginUrl);
+            logger.Info("Navigating to Backloggd Login");
+            webView.OpenDialog();
+
+        }
 
 
         /// <summary>
@@ -108,7 +133,7 @@ namespace BackloggdStatus
             const string script = @"
                         JSON.stringify(Array.from(document.querySelectorAll('#buttons > .btn-play-fill')).map(el => el.className));
                     ";
-            
+
             var navigationCompleted = new TaskCompletionSource<bool>();
 
             List<string> statusList = new List<string>();
@@ -143,7 +168,7 @@ namespace BackloggdStatus
                     }
                     catch (Exception exception)
                     {
-                        logger.Error($"Error in GetGameStatus: { exception.Message}");
+                        logger.Error($"Error in GetGameStatus: {exception.Message}");
 
                         navigationCompleted.SetResult(false);
                     }
@@ -332,29 +357,6 @@ namespace BackloggdStatus
         }
 
         /// <summary>
-        /// Opens the Backloggd.com login page and stores login cookies.
-        /// </summary>
-        public void Login()
-        {
-            if (verbose)
-            {
-                logger.Trace("Login method called");
-            }
-
-            using (var webView = playniteApi.WebViews.CreateView(width, height))
-            {
-                webView.Navigate("https://www.backloggd.com/users/sign_in");
-                AcceptCookies(webView);
-                webView.OpenDialog();
-
-                logger.Info("Navigating to Backloggd Login");
-            }
-
-            CheckLogin();
-
-        }
-
-        /// <summary>
         /// Logs out of Backloggd.com by deleting cookies.
         /// </summary>
         public void Logout()
@@ -416,17 +418,17 @@ namespace BackloggdStatus
 
             logger.Debug("Private CheckLogin");
             webView.Navigate("https://www.backloggd.com");
-        
-        
+
+
             var navigationCompleted = new TaskCompletionSource<bool>();
             bool eventHandled = false;
-        
+
             webView.LoadingChanged += async (s, e) =>
             {
                 if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
                 {
                     eventHandled = true;
-                    
+
                     logger.Debug("In webView.LoadingChanged - CheckLogin method");
                     logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
 
@@ -452,7 +454,7 @@ namespace BackloggdStatus
                         {
                             logger.Debug("Result is not set correctly");
                             LoggedIn = false;
-                            
+
                         }
 
                         if (verbose)
@@ -471,9 +473,9 @@ namespace BackloggdStatus
             };
 
 
-        
+
             await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
-        
+
             if (verbose)
             {
                 logger.Trace("CheckLogin method finished");
@@ -492,7 +494,7 @@ namespace BackloggdStatus
 
             if (buttonMapper[status] != "0")
             {
-                script = $"document.getElementsByClassName('button-link btn-play mx-auto')[{ buttonMapper[status] }].click();";
+                script = $"document.getElementsByClassName('button-link btn-play mx-auto')[{buttonMapper[status]}].click();";
             }
             else
             {
@@ -561,7 +563,7 @@ namespace BackloggdStatus
                 ExecuteScript(webView, script);
             }
 
-            
+
         }
 
 
@@ -621,7 +623,7 @@ namespace BackloggdStatus
             using (var webView = PlayniteApiProvider.Api.WebViews.CreateView(width, height))
             {
                 // TODO: Make this faster if possible.
-                
+
                 webView.LoadingChanged += (s, e) =>
                 {
                     var currentAddress = webView.GetCurrentAddress();
