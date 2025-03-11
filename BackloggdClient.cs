@@ -1,28 +1,38 @@
 ﻿using Playnite.SDK;
+using Playnite.SDK.Events;
+using Playnite.SDK.Models;
+using Playnite.SDK.Plugins;
 using Playnite.SDK.Data;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Eventing.Reader;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Controls;
+using System.Security.Policy;
+using AngleSharp.Parser.Html;
+using AngleSharp;
+using AngleSharp.Extensions;
 
 namespace BackloggdStatus
 {
     public class BackloggdClient
     {
-        private readonly IPlayniteAPI playniteApi = PlayniteApiProvider.Api;
+        private readonly IPlayniteAPI PlayniteApi = PlayniteApiProvider.Api;
         private static readonly ILogger logger = LogManager.GetLogger();
         private readonly IWebView webView;
         private const string loginUrl = @"https://www.backloggd.com/users/sign_in";
         private const string logoutUrl = @"https://www.backloggd.com/users/sign_out";
+        private const string homeUrl = @"https://www.backloggd.com";
 
 
-        public bool LoggedIn { get; private set; }
+        
         private const bool verbose = true;
 
-        private const int width = 880;
-        private const int height = 530;
-
-        private const string homeUrl = "https://www.backloggd.com";
+        
 
         private readonly Dictionary<string, string> statusMapper = new Dictionary<string, string>
         {
@@ -62,20 +72,51 @@ namespace BackloggdStatus
 
             webView.LoadingChanged += (s, e) =>
             {
-                if (CheckLogin())
+                if (IsUserLoggedIn())
                 {
                     webView.Close();
                 }
             };
 
-            webView.DeleteDomainCookies(".humblebundle.com");
-            webView.DeleteDomainCookies("www.humblebundle.com");
+            Logout();
             webView.Navigate(loginUrl);
             logger.Info("Navigating to Backloggd Login");
             webView.OpenDialog();
 
         }
 
+        /// <summary>
+        /// Checks if user is logged in to Backloggd.com
+        /// </summary>
+        public bool IsUserLoggedIn()
+        {
+            if (verbose)
+            {
+                logger.Trace("Public IsUserLoggedIn method called");
+            }
+
+            logger.Debug("Public IsUserLoggedIn");
+
+            webView.NavigateAndWait(homeUrl);
+
+            // TODO: test this method
+            // Check if #mobile-user-nav') exists, return false if it does.
+            var parser = new HtmlParser();
+            var document = parser.Parse(webView.GetPageSource());
+            var userNav = document.QuerySelector("#mobile-user-nav");
+
+            if (userNav == null)
+            {
+                BackloggdStatus.loggedIn = false;
+                return false;
+            }
+            else
+            {
+                BackloggdStatus.loggedIn = true;
+                return true;
+            }
+
+        }
 
         /// <summary>
         /// Deletes all cookies from Backloggd.com
@@ -88,12 +129,9 @@ namespace BackloggdStatus
                 logger.Trace("DeleteCookies method called");
             }
 
-            using (var webView = playniteApi.WebViews.CreateOffscreenView())
-            {
-                logger.Info("Deleting Cookies");
-                webView.DeleteDomainCookies(".backloggd.com");
-                webView.DeleteDomainCookies("www.backloggd.com");
-            }
+            logger.Info("Deleting Cookies");
+            webView.DeleteDomainCookies(".backloggd.com");
+            webView.DeleteDomainCookies("www.backloggd.com");
         }
 
         /// <summary>
@@ -107,13 +145,20 @@ namespace BackloggdStatus
 
             logger.Debug("Public GetGameStatus");
 
-            using (var webView = playniteApi.WebViews.CreateOffscreenView())
-            {
-                logger.Debug($"Opening WebView to: {gameUrl}");
-                statusList = GetGameStatus(webView, gameUrl).GetAwaiter().GetResult();
-                playStatus = GetPlayedStatus(webView, gameUrl).GetAwaiter().GetResult();
-            }
+            logger.Debug($"Opening WebView to: {gameUrl}");
 
+            webView.NavigateAndWait(gameUrl);
+            string pagesource = webView.GetPageSource();
+
+            var parser = new HtmlParser();
+            var document = parser.Parse(pagesource);
+
+            var statusElements = document.QuerySelectorAll("#buttons > .btn-play-fill");
+            statusList = statusElements.Select(el => el.ClassName).ToList();
+
+
+            var playedStatusElement = document.GetElementsByClassName("button-link btn-play mx-auto")[0];
+            playStatus = playedStatusElement.GetAttribute("play_type");
 
             statusList = statusList.Select(SetStatusString).ToList();
 
@@ -124,119 +169,6 @@ namespace BackloggdStatus
             }
 
             return statusList;
-        }
-
-        private async Task<List<string>> GetGameStatus(IWebView webView, string url)
-        {
-            logger.Debug("Private GetGameStatus");
-
-            const string script = @"
-                        JSON.stringify(Array.from(document.querySelectorAll('#buttons > .btn-play-fill')).map(el => el.className));
-                    ";
-
-            var navigationCompleted = new TaskCompletionSource<bool>();
-
-            List<string> statusList = new List<string>();
-            JavaScriptEvaluationResult result = null;
-
-            // This is to prevent the event from being called multiple times.
-            bool eventHandled = false;
-
-            webView.Navigate(url);
-
-
-            webView.LoadingChanged += async (s, e) =>
-            {
-                if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
-                {
-                    eventHandled = true;
-
-                    logger.Debug($"Executing Script: {script} at: {webView.GetCurrentAddress()}");
-
-                    try
-                    {
-                        result = await webView.EvaluateScriptAsync(script);
-
-
-                        if (result != null && result.Result != null)
-                        {
-                            statusList = Serialization.FromJson<List<string>>(result.Result.ToString());
-                        }
-
-                        navigationCompleted.SetResult(true);
-
-                    }
-                    catch (Exception exception)
-                    {
-                        logger.Error($"Error in GetGameStatus: {exception.Message}");
-
-                        navigationCompleted.SetResult(false);
-                    }
-                }
-            };
-
-            await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
-
-
-
-            return statusList;
-        }
-
-        private async Task<string> GetPlayedStatus(IWebView webView, string url)
-        {
-            logger.Debug("Private GetPlayedStatus");
-
-            const string script = @"
-                        JSON.stringify(document.getElementsByClassName('button-link btn-play mx-auto')[0].getAttribute('play_type'));
-                    ";
-
-
-            var navigationCompleted = new TaskCompletionSource<bool>();
-
-            string playStatus = "";
-            JavaScriptEvaluationResult result = null;
-
-            // This is to prevent the event from being called multiple times.
-            bool eventHandled = false;
-
-            webView.Navigate(url);
-
-
-            webView.LoadingChanged += async (s, e) =>
-            {
-                if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
-                {
-                    eventHandled = true;
-
-                    logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
-
-                    try
-                    {
-                        result = await webView.EvaluateScriptAsync(script);
-
-
-                        if (result != null && result.Result != null)
-                        {
-                            playStatus = Serialization.FromJson<string>(result.Result.ToString());
-                        }
-
-                        navigationCompleted.SetResult(true);
-
-                    }
-                    catch (Exception exception)
-                    {
-                        logger.Error($"Error in GetGameStatus: {exception.Message}");
-
-                        navigationCompleted.SetResult(false);
-                    }
-                }
-            };
-
-            await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
-
-
-
-            return playStatus;
         }
 
         private string SetStatusString(string status)
@@ -261,74 +193,21 @@ namespace BackloggdStatus
 
             logger.Debug("Public GetBackloggdName");
 
-            using (var webView = playniteApi.WebViews.CreateOffscreenView())
+            webView.NavigateAndWait(gameUrl);
+            string pagesource = webView.GetPageSource();
+
+            var parser = new HtmlParser();
+            var document = parser.Parse(pagesource);
+            
+            var gameElement = document.QuerySelector("#title > div.col-12.pr-0 > div > div > h1");
+            if (gameElement == null)
             {
-                logger.Debug($"Opening WebView to: {gameUrl}");
-                gameName = GetBackloggdName(webView, gameUrl).GetAwaiter().GetResult();
+                throw new Exception("GameName not found");
             }
+
+            gameName = gameElement.TextContent;
 
             logger.Debug($"GameName set to {gameName}");
-
-            return gameName;
-        }
-
-        private async Task<string> GetBackloggdName(IWebView webView, string url)
-        {
-            if (verbose)
-            {
-                logger.Trace("Private GetBackloggdName method called");
-            }
-
-            logger.Debug("Private GetBackloggdName");
-
-            const string script = @"
-                        document.querySelector('#title > div.col-12.pr-0 > div > div > h1').textContent;
-                    ";
-
-            var navigationCompleted = new TaskCompletionSource<bool>();
-
-            string gameName = "Could Not Find Game Name on Backloggd";
-
-            JavaScriptEvaluationResult result = null;
-            bool eventHandled = false;
-
-            webView.Navigate(url);
-
-
-            webView.LoadingChanged += async (s, e) =>
-            {
-                if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
-                {
-                    eventHandled = true;
-
-
-                    logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
-
-                    try
-                    {
-                        result = await webView.EvaluateScriptAsync(script);
-
-
-                        if (result != null && result.Result != null)
-                        {
-                            gameName = result.Result.ToString();
-                        }
-
-                        navigationCompleted.SetResult(true);
-
-                    }
-                    catch (Exception exception)
-                    {
-                        logger.Error($"Error in GetBackloggdName: {exception.Message}");
-
-                        navigationCompleted.SetResult(false);
-                    }
-                }
-            };
-
-            await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
-
-
 
             return gameName;
         }
@@ -340,19 +219,17 @@ namespace BackloggdStatus
         /// </summary>
         public void OpenWebView(string url = homeUrl)
         {
+            // TODO: Check if necessary
             if (verbose)
             {
                 logger.Trace($"OpenWebView to {url} method called");
             }
 
-            using (var webView = playniteApi.WebViews.CreateView(width, height))
-            {
-                webView.Navigate(url);
-                webView.OpenDialog();
-            }
+            webView.Navigate(url);
+            webView.OpenDialog();
 
             logger.Info("Opening webView");
-            CheckLogin();
+            IsUserLoggedIn();
 
         }
 
@@ -362,290 +239,127 @@ namespace BackloggdStatus
         public void Logout()
         {
             DeleteCookies();
-            CheckLogin();
+            IsUserLoggedIn();
         }
 
         /// <summary>
-        /// Clicks Accept Cookies on Backloggd.com
+        /// Generates the JavaScript needed to toggle the game's status based on the status parameter.
         /// </summary>
-        /// <param name="webView">webView open to Backloggd.com</param>
-        private void AcceptCookies(IWebView webView)
+        private string GenerateStatusToggleScript(string status)
         {
-            if (verbose)
+            if (buttonMapper.TryGetValue(status, out string index) && index != "0")
             {
-                logger.Trace("AcceptCookies method called");
+                return $"document.getElementsByClassName('button-link btn-play mx-auto')[{index}].click();";
             }
 
-            const string script = @"
-                        var acceptButton = document.querySelector('#cookie-banner-accept');
-                        acceptButton.click();
-                    ";
+            return $@"
+                // First click on the play button
+                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
 
-            ExecuteScript(webView, script);
+                // Wait for the page to update, then proceed with the next actions
+                const waitForElement = (selector, callback) => {{
+                    const interval = setInterval(() => {{
+                        if (document.querySelector(selector)) {{
+                            clearInterval(interval);
+                            callback();
+                        }}
+                    }}, 500);
+                }};
+
+                waitForElement('#{status}', () => {{
+                    document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                    document.querySelector('#{status}').click();
+                }});
+            ";
         }
 
-        /// <summary>
-        /// Checks if user is logged in to Backloggd.com
-        /// </summary>
-        public void CheckLogin()
+
+        public async Task ToggleStatusAsync(string gameURL, string status)
         {
             if (verbose)
             {
-                logger.Trace("Public CheckLogin method called");
+                logger.Trace("ToggleStatusAsync method called");
             }
 
-            logger.Debug("Public CheckLogin");
+            // Generate the script based on the status
+            string script = GenerateStatusToggleScript(status);
 
-            using (var webView = playniteApi.WebViews.CreateOffscreenView())
+            try
             {
-                CheckLogin(webView).GetAwaiter().GetResult();
+                webView.NavigateAndWait(gameURL);
+                await ExecuteScriptAsync(script);
+            }
+            catch (Exception ex)
+            {
+                logger.Error($"Failed to toggle status {status} for URL {gameURL}: {ex.Message}");
             }
         }
 
-        private async Task CheckLogin(IWebView webView)
+        private async Task ExecuteScriptAsync(string script)
         {
             if (verbose)
             {
-                logger.Trace("Private CheckLogin method called");
+                logger.Trace("ExecuteScriptAsync method called");
             }
 
-            // This Menu is the sign-out box which only appears when user is logged in.
-            const string script = @"
-                        document.querySelector('#mobile-user-nav > div:nth-child(3) > a') !== null;
-                    ";
-
-            JavaScriptEvaluationResult result = null;
-
-            logger.Debug("Private CheckLogin");
-            webView.Navigate("https://www.backloggd.com");
-
-
-            var navigationCompleted = new TaskCompletionSource<bool>();
             bool eventHandled = false;
+            var navigationCompleted = new TaskCompletionSource<bool>();
 
             webView.LoadingChanged += async (s, e) =>
             {
                 if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
                 {
                     eventHandled = true;
-
-                    logger.Debug("In webView.LoadingChanged - CheckLogin method");
-                    logger.Debug($"Executing Script at: {webView.GetCurrentAddress()}");
+                    logger.Debug("In ExecuteScriptAsync LoadingChanged event handler");
 
                     try
                     {
-                        result = await webView.EvaluateScriptAsync(script);
-                        logger.Debug($"Executing Script {script} - Result: {result?.Result}");
-
-                        if (result != null && result.Result != null)
-                        {
-                            if (bool.Parse(result.Result.ToString()))
-                            {
-                                logger.Info("Logged In");
-                                LoggedIn = true;
-                            }
-                            else
-                            {
-                                logger.Debug("Logged Out");
-                                LoggedIn = false;
-                            }
-                        }
-                        else
-                        {
-                            logger.Debug("Result is not set correctly");
-                            LoggedIn = false;
-
-                        }
-
-                        if (verbose)
-                        {
-                            logger.Trace($"LoggedIn set to {LoggedIn}");
-                        }
-
+                        var result = await webView.EvaluateScriptAsync(script);
+                        logger.Debug($"Executed script: {script} at: {webView.GetCurrentAddress()} with result: {result}");
                         navigationCompleted.SetResult(true);
                     }
                     catch (Exception exception)
                     {
-                        logger.Error($"Error in GetGameStatus: {exception.Message}");
+                        logger.Error($"Error in ExecuteScriptAsync: {exception.Message}");
                         navigationCompleted.SetResult(false);
                     }
                 }
             };
 
-
-
-            await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
-
-            if (verbose)
-            {
-                logger.Trace("CheckLogin method finished");
-            }
+            // Wait for the script execution to complete
+            await navigationCompleted.Task.ConfigureAwait(false);
         }
 
 
-        public void ToggleStatus(string gameURL, string status)
+
+        public async Task<string> SetBackloggdUrlAsync(string name = null)
         {
-            if (verbose)
-            {
-                logger.Trace("ToggleStatus method called");
-            }
+            string searchUrl = name != null
+                ? $"https://www.backloggd.com/search/games/{name.Replace(" ", "%20")}"
+                : homeUrl;
 
-            string script;
-
-            if (buttonMapper[status] != "0")
-            {
-                script = $"document.getElementsByClassName('button-link btn-play mx-auto')[{buttonMapper[status]}].click();";
-            }
-            else
-            {
-                switch (status)
-                {
-                    case "Played":
-                        script = @"
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            timeoutId = setTimeout(function(){
-                                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                                document.querySelector('#played').click();
-                            },5000);
-                            clearTimeout(timeoutID);";
-                        break;
-                    case "Completed":
-                        script = @"
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            timeoutId = setTimeout(function(){
-                                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                                document.querySelector('#completed').click();
-                            },3000);
-                            clearTimeout(timeoutID);";
-                        break;
-                    case "Retired":
-                        script = @"
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            timeoutId = setTimeout(function(){
-                                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                                document.querySelector('#retired').click();
-                            },3000);
-                            clearTimeout(timeoutID);";
-                        break;
-                    case "Shelved":
-                        script = @"
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            timeoutId = setTimeout(function(){
-                                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                                document.querySelector('#shelved').click();
-                            },3000);
-                            clearTimeout(timeoutID);";
-                        break;
-                    case "Abandoned":
-                        script = @"
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            timeoutId = setTimeout(function(){
-                                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                                document.querySelector('#abandoned').click();
-                            },3000);
-                            clearTimeout(timeoutID);";
-                        break;
-                    default:
-                        // Deselect Played
-                        script = @"
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-                            document.querySelector('#unset-played-btn').click();";
-                        break;
-                }
-
-            }
-
-
-            using (var webView = playniteApi.WebViews.CreateOffscreenView())
-            {
-                webView.Navigate(gameURL);
-                ExecuteScript(webView, script);
-            }
-
-
-        }
-
-
-        private void ExecuteScript(IWebView webView, string script)
-        {
-            if (verbose)
-            {
-                logger.Trace("ExecuteScript method called");
-            }
-
-            bool eventHandled = false;
-            var navigationCompleted = new TaskCompletionSource<bool>();
-
-            webView.LoadingChanged += async (s, e) =>
-            {
-                if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
-                {
-                    eventHandled = true;
-                    logger.Debug("In ExecuteScript LoadingChanged method");
-
-                    try
-                    {
-                        await webView.EvaluateScriptAsync(script);
-
-                        logger.Debug($"Executing Script {script} at: {webView.GetCurrentAddress()}");
-
-                        navigationCompleted.SetResult(true);
-                    }
-                    catch (Exception exception)
-                    {
-                        logger.Error(exception.Message);
-
-                        navigationCompleted.SetResult(true);
-                    }
-                }
-            };
-
-            navigationCompleted.Task.Wait();
-            // await navigationCompleted.Task.ConfigureAwait(continueOnCapturedContext: false);
-        }
-
-
-        public string SetBackloggdUrl(string name = null)
-        {
-            string searchUrl;
             string url = BackloggdStatus.DefaultURL;
+            var navigationCompleted = new TaskCompletionSource<string>();
 
-            if (name != null)
+            webView.LoadingChanged += (s, e) =>
             {
-                searchUrl = $"https://www.backloggd.com/search/games/{name.Replace(" ", "%20")}";
-            }
-            else
-            {
-                searchUrl = homeUrl;
-            }
-
-            using (var webView = PlayniteApiProvider.Api.WebViews.CreateView(width, height))
-            {
-                // TODO: Make this faster if possible.
-
-                webView.LoadingChanged += (s, e) =>
+                if (!e.IsLoading)
                 {
                     var currentAddress = webView.GetCurrentAddress();
                     if (!string.IsNullOrEmpty(currentAddress) && currentAddress.Contains("https://www.backloggd.com/games"))
                     {
-                        url = currentAddress;
+                        navigationCompleted.SetResult(currentAddress);
                         webView.Close();
                     }
-                };
-
-                webView.Navigate(searchUrl);
-
-                webView.OpenDialog();
-
-                if (webView.GetCurrentAddress().Contains("https://www.backloggd.com/games"))
-                {
-                    url = webView.GetCurrentAddress();
-
                 }
-            }
+            };
 
+            webView.Navigate(searchUrl);
+            webView.OpenDialog();
+
+            url = await navigationCompleted.Task.ConfigureAwait(false);
             return url;
         }
+
     }
 }

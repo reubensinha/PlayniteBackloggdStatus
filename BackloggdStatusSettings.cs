@@ -101,13 +101,20 @@ namespace BackloggdStatus
             // Executed before EndEdit is called and EndEdit is not called if false is returned.
             // List of errors is presented to user if verification fails.
             errors = new List<string>();
-            return true;
+
+            if (Settings.BackloggdURLs == null || !Settings.BackloggdURLs.Any())
+            {
+                errors.Add("No Backloggd URLs have been configured.");
+            }
+
+            return !errors.Any();
         }
 
     }
 
     public class BackloggdURLBinder : ObservableObject
     {
+        [DontSerialize]
         private static readonly ILogger logger = LogManager.GetLogger();
 
         private Guid gameId;
@@ -170,37 +177,52 @@ namespace BackloggdStatus
         }
 
         [DontSerialize]
-        private readonly BackloggdClient backloggdClient = new BackloggdClient();
+        private readonly IPlayniteAPI PlayniteApi = PlayniteApiProvider.Api;
 
 
-        public void RefreshStatus()
+        public void RefreshStatus(IWebView webView = null)
         {
-            Game game = PlayniteApiProvider.Api.Database.Games.Get(GameId);
-            // TODO: There was an exception here. Look into it.
-            Link gameURL;
             try
             {
-                gameURL = game.Links.FirstOrDefault(link => link.Url.Contains("https://www.backloggd.com/games"));
+                Game game = PlayniteApi.Database.Games.Get(GameId);
+
+                // Attempt to find the Backloggd URL in the game's links.
+                Link gameURL = game.Links?.FirstOrDefault(link => link.Url.Contains("https://www.backloggd.com/games"));
+
+                if (gameURL == null)
+                {
+                    URLSet = false;
+                    return;
+                }
+
+                URLSet = true;
+
+                // Retrieve game status using the BackloggdClient
+                List<string> status;
+                if (webView != null)
+                {
+                    BackloggdClient backloggdClient = new BackloggdClient(webView);
+                    logger.Debug("Calling RefreshStatus in BackloggdURLBinder");
+                    BackloggdName = backloggdClient.GetBackloggdName(gameURL.Url);
+                    status = backloggdClient.GetGameStatus(gameURL.Url);
+                }
+                else
+                {
+                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
+                    {
+                        BackloggdClient backloggdClient = new BackloggdClient(view);
+                        logger.Debug("Calling RefreshStatus in BackloggdURLBinder");
+                        BackloggdName = backloggdClient.GetBackloggdName(gameURL.Url);
+                        status = backloggdClient.GetGameStatus(gameURL.Url);
+                    }
+                }
+
+                SetStatus(status);
             }
-            catch (ArgumentNullException e)
+            catch (Exception ex)
             {
-                gameURL = null;
+                logger.Error($"Error refreshing status for game ID {GameId}: {ex.Message}");
             }
-            
-            if (gameURL == null)
-            {
-                URLSet = false;
-                return;
-            }
-
-            URLSet = true;
-
-            logger.Debug("Call RefreshStatus in BackloggdURLBinder");
-            BackloggdName = backloggdClient.GetBackloggdName(gameURL.Url);
-            
-            var status = backloggdClient.GetGameStatus(gameURL.Url);
-
-            SetStatus(status);
         }
 
         private void SetStatus(List<string> status)
@@ -212,7 +234,7 @@ namespace BackloggdStatus
 
             foreach (string s in status)
             {
-                switch (s)
+                switch (s.ToLowerInvariant())
                 {
                     case "wishlist":
                         Wishlist = true;
@@ -239,8 +261,7 @@ namespace BackloggdStatus
                         Played = PlayedStatus.Abandoned;
                         break;
                     default:
-                        logger.Error("Unrecognized Status");
-                        throw new Exception($"Attempted to save unrecognized status. { s }");
+                        logger.Warn("Unrecognized Status");
                         break;
                 }
             }

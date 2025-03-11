@@ -82,6 +82,9 @@
     <Folder Include="manifests\" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="AngleSharp">
+      <Version>0.9.9</Version>
+    </PackageReference>
     <PackageReference Include="PlayniteSDK">
       <Version>6.11.0</Version>
     </PackageReference>
