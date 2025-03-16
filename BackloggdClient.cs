@@ -29,7 +29,6 @@ namespace BackloggdStatus
         public const string baseUrl = @"https://backloggd.com";
 
         private string loginUrl = $@"{baseUrl}/users/sign_in";
-        private string logoutUrl = $@"{baseUrl}/users/sign_out";
 
 
         
@@ -334,7 +333,7 @@ namespace BackloggdStatus
 
 
 
-        public async Task<string> SetBackloggdUrlAsync(string name = null)
+        public string SetBackloggdUrl(string name = null)
         {
             logger.Trace("In SetBackloggdUrlAsync");
             string searchUrl = name != null
@@ -342,7 +341,7 @@ namespace BackloggdStatus
                 : baseUrl;
 
             //string url = BackloggdStatus.DefaultURL;
-            var navigationCompleted = new TaskCompletionSource<string>();
+            //var navigationCompleted = new TaskCompletionSource<string>();
 
             //webView.LoadingChanged += (s, e) =>
             //{

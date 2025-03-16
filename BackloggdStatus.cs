@@ -26,7 +26,7 @@ namespace BackloggdStatus
         private BackloggdStatusSettingsViewModel settings { get; set; }
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
 
-        private const bool debug = true;
+        private const bool debug = false;
 
         private const int width = 880;
         private const int height = 530;
@@ -285,7 +285,7 @@ namespace BackloggdStatus
                         using (var view = PlayniteApi.WebViews.CreateView(width, height))
                         {
                             BackloggdClient backloggdClient = new BackloggdClient(view);
-                            url = backloggdClient.SetBackloggdUrlAsync(args.Games[0].Name).GetAwaiter().GetResult();
+                            url = backloggdClient.SetBackloggdUrl(args.Games[0].Name);
 
                         }
                         if (url.Contains($"{BackloggdClient.baseUrl}/games"))
@@ -581,7 +581,7 @@ namespace BackloggdStatus
                     using (var view  = PlayniteApi.WebViews.CreateView(width, height))
                     {
                         BackloggdClient backloggdClient = new BackloggdClient(view);
-                        newUrl = backloggdClient.SetBackloggdUrlAsync(args.Games[0].Name).GetAwaiter().GetResult();
+                        newUrl = backloggdClient.SetBackloggdUrl(args.Games[0].Name);
 
                     }
                     if (newUrl.Contains($"{BackloggdClient.baseUrl}/games"))
