@@ -187,7 +187,7 @@ namespace BackloggdStatus
                 Game game = PlayniteApi.Database.Games.Get(GameId);
 
                 // Attempt to find the Backloggd URL in the game's links.
-                Link gameURL = game.Links?.FirstOrDefault(link => link.Url.Contains("https://www.backloggd.com/games"));
+                Link gameURL = game.Links?.FirstOrDefault(link => link.Url.Contains("backloggd.com/games"));
 
                 if (gameURL == null)
                 {

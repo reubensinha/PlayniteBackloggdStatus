@@ -16,6 +16,7 @@ using System.Security.Policy;
 using AngleSharp.Parser.Html;
 using AngleSharp;
 using AngleSharp.Extensions;
+using System.Windows.Navigation;
 
 namespace BackloggdStatus
 {
@@ -24,9 +25,11 @@ namespace BackloggdStatus
         private readonly IPlayniteAPI PlayniteApi = PlayniteApiProvider.Api;
         private static readonly ILogger logger = LogManager.GetLogger();
         private readonly IWebView webView;
-        private const string loginUrl = @"https://www.backloggd.com/users/sign_in";
-        private const string logoutUrl = @"https://www.backloggd.com/users/sign_out";
-        private const string homeUrl = @"https://www.backloggd.com";
+
+        public const string baseUrl = @"https://backloggd.com";
+
+        private string loginUrl = $@"{baseUrl}/users/sign_in";
+        private string logoutUrl = $@"{baseUrl}/users/sign_out";
 
 
         
@@ -65,30 +68,26 @@ namespace BackloggdStatus
         /// </summary>
         public void Login()
         {
-            if (verbose)
-            {
-                logger.Trace("Login method called");
-            }
-
-            webView.LoadingChanged += (s, e) =>
-            {
-                if (IsUserLoggedIn())
-                {
-                    webView.Close();
-                }
-            };
+            logger.Trace("Login method called");
 
             Logout();
             webView.Navigate(loginUrl);
             logger.Info("Navigating to Backloggd Login");
             webView.OpenDialog();
 
+            //webView.LoadingChanged += (s, e) =>
+            //{
+            //    if (webView.GetCurrentAddress() == baseUrl)
+            //    {
+            //        webView.Close();
+            //    }
+            //};
         }
 
         /// <summary>
         /// Checks if user is logged in to Backloggd.com
         /// </summary>
-        public bool IsUserLoggedIn()
+        public bool IsUserLoggedIn(bool navigate = true)
         {
             if (verbose)
             {
@@ -97,7 +96,10 @@ namespace BackloggdStatus
 
             logger.Debug("Public IsUserLoggedIn");
 
-            webView.NavigateAndWait(homeUrl);
+            if (navigate)
+            {
+                webView.NavigateAndWait(baseUrl);
+            }
 
             // TODO: test this method
             // Check if #mobile-user-nav') exists, return false if it does.
@@ -217,7 +219,7 @@ namespace BackloggdStatus
         /// Opens a WebView to given url.
         /// If no url is given, opens to Backloggd.com
         /// </summary>
-        public void OpenWebView(string url = homeUrl)
+        public void OpenWebView(string url = baseUrl)
         {
             // TODO: Check if necessary
             if (verbose)
@@ -239,7 +241,7 @@ namespace BackloggdStatus
         public void Logout()
         {
             DeleteCookies();
-            IsUserLoggedIn();
+            //IsUserLoggedIn();
         }
 
         /// <summary>
@@ -334,31 +336,41 @@ namespace BackloggdStatus
 
         public async Task<string> SetBackloggdUrlAsync(string name = null)
         {
+            logger.Trace("In SetBackloggdUrlAsync");
             string searchUrl = name != null
-                ? $"https://www.backloggd.com/search/games/{name.Replace(" ", "%20")}"
-                : homeUrl;
+                ? $"{baseUrl}/search/games/{name.Replace(" ", "%20")}"
+                : baseUrl;
 
-            string url = BackloggdStatus.DefaultURL;
+            //string url = BackloggdStatus.DefaultURL;
             var navigationCompleted = new TaskCompletionSource<string>();
 
-            webView.LoadingChanged += (s, e) =>
-            {
-                if (!e.IsLoading)
-                {
-                    var currentAddress = webView.GetCurrentAddress();
-                    if (!string.IsNullOrEmpty(currentAddress) && currentAddress.Contains("https://www.backloggd.com/games"))
-                    {
-                        navigationCompleted.SetResult(currentAddress);
-                        webView.Close();
-                    }
-                }
-            };
+            //webView.LoadingChanged += (s, e) =>
+            //{
+            //    if (!e.IsLoading)
+            //    {
+            //        var currentAddress = webView.GetCurrentAddress();
+            //        if (!string.IsNullOrEmpty(currentAddress) && currentAddress.Contains("backloggd.com/games"))
+            //        {
+            //            navigationCompleted.SetResult(currentAddress);
+            //            webView.Close();
+            //        }
+            //    }
+            //};
 
             webView.Navigate(searchUrl);
             webView.OpenDialog();
 
-            url = await navigationCompleted.Task.ConfigureAwait(false);
-            return url;
+            var currentAddress = webView.GetCurrentAddress();
+            logger.Trace($"currentAddress is: {currentAddress}");
+
+            if (string.IsNullOrEmpty(currentAddress) || !currentAddress.Contains($"{baseUrl}/games"))
+            {
+                //navigationCompleted.SetResult(currentAddress);
+                //webView.Close();
+                currentAddress = BackloggdStatus.DefaultURL;
+            }
+            logger.Trace($"SetBackloggdUrlAsync returning {currentAddress}");
+            return currentAddress;
         }
 
     }

@@ -14,6 +14,7 @@ using System.Text;
 using System.Threading.Tasks;   
 using System.Windows.Controls;
 using System.Collections.Specialized;
+using System.Collections.ObjectModel;
 
 
 namespace BackloggdStatus
@@ -25,8 +26,7 @@ namespace BackloggdStatus
         private BackloggdStatusSettingsViewModel settings { get; set; }
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
 
-        private const bool debug = false;
-        private const bool verbose = false;
+        private const bool debug = true;
 
         private const int width = 880;
         private const int height = 530;
@@ -37,10 +37,7 @@ namespace BackloggdStatus
 
         public BackloggdStatus(IPlayniteAPI api) : base(api)
         {
-            if (verbose)
-            {
-                logger.Trace("BackloggdStatus Constructor Called");
-            }
+           logger.Debug("BackloggdStatus Constructor Called");
 
             PlayniteApiProvider.Api = api;
 
@@ -99,10 +96,7 @@ namespace BackloggdStatus
 
         private void SynchronizeSettingsWithLibrary()
         {
-            if (verbose)
-            {
-                logger.Trace("Synchronizing settings with library.");
-            }
+            logger.Trace("Backloggd: Synchronizing settings with library.");
 
             var currentGameIds = settings.Settings.BackloggdURLs.Select(binder => binder.GameId).ToHashSet();
             var libraryGames = PlayniteApi.Database.Games;
@@ -130,10 +124,7 @@ namespace BackloggdStatus
         // To add new main menu items override GetMainMenuItems
         public override IEnumerable<MainMenuItem> GetMainMenuItems(GetMainMenuItemsArgs args)
         {
-            if (verbose)
-            {
-                logger.Trace("GetMainMenuItems Called");
-            }
+           logger.Debug("BakloggdStatus: GetMainMenuItems Called");
 
             if (!loggedIn)
             {
@@ -148,6 +139,7 @@ namespace BackloggdStatus
                         {
                             BackloggdClient backloggdClient = new BackloggdClient(view);
                             backloggdClient.Login();
+                            backloggdClient.IsUserLoggedIn();
                         }
                     }
                 };
@@ -165,6 +157,7 @@ namespace BackloggdStatus
                         {
                             BackloggdClient backloggdClient = new BackloggdClient(view);
                             backloggdClient.Logout();
+                            backloggdClient.IsUserLoggedIn();
                         }
                     }
                 };
@@ -198,6 +191,7 @@ namespace BackloggdStatus
                     {
                         BackloggdClient backloggdClient = new BackloggdClient(view);
                         backloggdClient.Login();
+                        backloggdClient.IsUserLoggedIn();
                     }
                 }
             };
@@ -228,6 +222,7 @@ namespace BackloggdStatus
                     {
                         BackloggdClient backloggdClient = new BackloggdClient(view);
                         backloggdClient.Logout();
+                        backloggdClient.IsUserLoggedIn();
                     }
                 }
             };
@@ -235,13 +230,27 @@ namespace BackloggdStatus
 
         public override IEnumerable<GameMenuItem> GetGameMenuItems(GetGameMenuItemsArgs args)
         {
-            if (verbose)
-            {
-                logger.Trace("GetGameMenuItems Called");
-            }
-            var metadataLink = args.Games[0].Links.Select(link => link).FirstOrDefault(link => link.Name == "Backloggd");
+            logger.Debug("GetGameMenuItems Called");
 
-            BackloggdURLBinder game = settings.Settings.BackloggdURLs.First(x => x.GameId == args.Games[0].Id);
+            Link metadataLink;
+
+            if (args.Games[0].Links == null)
+            {
+                metadataLink = null;
+            }
+            else
+            {
+                metadataLink = args.Games[0].Links.Select(link => link).FirstOrDefault(link => link.Name == "Backloggd");
+            }
+
+            BackloggdURLBinder game = settings.Settings.BackloggdURLs.FirstOrDefault(x => x.GameId == args.Games[0].Id);
+            if (game == null)
+            {
+                // Handle the case where no matching element is found
+                logger.Error("No matching BackloggdURLBinder found for the game.");
+                yield break;
+            }
+
 
             if (!loggedIn)
             {
@@ -256,6 +265,7 @@ namespace BackloggdStatus
                         {
                             BackloggdClient backloggdClient = new BackloggdClient(view);
                             backloggdClient.Login();
+                            backloggdClient.IsUserLoggedIn();
                         }
                     }
                 };
@@ -272,16 +282,20 @@ namespace BackloggdStatus
                     Action = (arg1) =>
                     {
                         string url;
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
+                        using (var view = PlayniteApi.WebViews.CreateView(width, height))
                         {
                             BackloggdClient backloggdClient = new BackloggdClient(view);
                             url = backloggdClient.SetBackloggdUrlAsync(args.Games[0].Name).GetAwaiter().GetResult();
 
                         }
-                        if (url.Contains("https://www.backloggd.com/games"))
+                        if (url.Contains($"{BackloggdClient.baseUrl}/games"))
                         {
+                            if (args.Games[0].Links == null)
+                            {
+                                args.Games[0].Links = new ObservableCollection<Link>();
+                            }
                             args.Games[0].Links.Add(new Link("Backloggd", url));
-                            PlayniteApi.Database.Games.Update(args.Games[0]);
+
                         }
                         game.RefreshStatus();
                         SavePluginSettings(settings.Settings);
@@ -570,7 +584,7 @@ namespace BackloggdStatus
                         newUrl = backloggdClient.SetBackloggdUrlAsync(args.Games[0].Name).GetAwaiter().GetResult();
 
                     }
-                    if (newUrl.Contains("https://www.backloggd.com/games"))
+                    if (newUrl.Contains($"{BackloggdClient.baseUrl}/games"))
                     {
                         metadataLink.Url = newUrl;
                     }
