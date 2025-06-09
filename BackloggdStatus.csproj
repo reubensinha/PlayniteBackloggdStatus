@@ -54,7 +54,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="bin\Release\extension.yaml" />
     <None Include="extension.yaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -73,10 +72,6 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="bin\Release\Localization\en_US.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
   </ItemGroup>
   <ItemGroup>
     <None Include="icon.png">
@@ -93,13 +88,6 @@
     <PackageReference Include="PlayniteSDK">
       <Version>6.11.0</Version>
     </PackageReference>
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="bin\Release\AngleSharp.dll" />
-    <Content Include="bin\Release\BackloggdStatus.dll" />
-    <Content Include="bin\Release\BackloggdStatus.pdb" />
-    <Content Include="bin\Release\icon.png" />
-    <Content Include="bin\Release\Playnite.SDK.dll" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
