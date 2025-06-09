@@ -126,6 +126,20 @@ namespace BackloggdStatus
         {
            logger.Debug("BakloggdStatus: GetMainMenuItems Called");
 
+            yield return new MainMenuItem
+            {
+                // Added into "Extensions" menu
+                MenuSection = "@BackloggdStatus",
+                Description = "Clear Extension Data",
+                Action = (arg1) =>
+                {
+                    logger.Info("Clearing BackloggdStatus settings data.");
+                    settings.Settings.BackloggdURLs.Clear();
+                    SavePluginSettings(settings.Settings);
+                    SynchronizeSettingsWithLibrary();
+                }
+            };
+
             if (!loggedIn)
             {
                 yield return new MainMenuItem
@@ -248,6 +262,9 @@ namespace BackloggdStatus
             {
                 // Handle the case where no matching element is found
                 logger.Error("No matching BackloggdURLBinder found for the game.");
+                settings.Settings.BackloggdURLs.RemoveAll(x => x.GameId == game.GameId);
+                SavePluginSettings(settings.Settings);
+
                 yield break;
             }
 

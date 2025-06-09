@@ -200,7 +200,7 @@ namespace BackloggdStatus
             var parser = new HtmlParser();
             var document = parser.Parse(pagesource);
             
-            var gameElement = document.QuerySelector("#title > div.col-12.pr-0 > div > div > h1");
+            var gameElement = document.QuerySelector("#title > div.col-12.px-1 > div > div > h1");
             if (gameElement == null)
             {
                 throw new Exception("GameName not found");
