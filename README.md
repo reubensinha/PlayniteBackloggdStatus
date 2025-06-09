@@ -12,7 +12,7 @@ BackloggdStatus is an extension for the [Playnite](https://playnite.link/) Libra
 ## Known Issues
 
 - Currently WebView dialogs do not automatically close upon logging in or when setting the Url of a game.
-- I'm working on it.
+- After closing the WebView dialog, takes a long time to return to Playnite if changes to game have been made.
 
 ## Planned features / Changes
 
