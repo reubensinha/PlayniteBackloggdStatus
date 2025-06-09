@@ -26,7 +26,7 @@ namespace BackloggdStatus
         private BackloggdStatusSettingsViewModel settings { get; set; }
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
 
-        private const bool debug = false;
+        private bool debug = false;
 
         private const int width = 880;
         private const int height = 530;
@@ -176,6 +176,18 @@ namespace BackloggdStatus
                     }
                 };
             }
+
+            yield return new MainMenuItem
+            {
+                // Added into "Extensions" menu
+                MenuSection = "@BackloggdStatus",
+                Description = "Toggle Debug Mode",
+                Action = (arg1) =>
+                {
+                    debug = !debug;
+                    logger.Info($"Set BackloggdStatus.debug to: {debug}");
+                }
+            };
 
             if (!debug)
             {
