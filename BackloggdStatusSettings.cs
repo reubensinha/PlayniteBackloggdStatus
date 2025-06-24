@@ -24,8 +24,8 @@ namespace BackloggdStatus
         
         // Playnite serializes settings object to a JSON object and saves it as text file.
         // If you want to exclude some property from being saved then use `JsonDontSerialize` ignore attribute.
-        public List<BackloggdGame> BackloggdURLs { get; set; } = new List<BackloggdGame>();
-        }
+        public List<BackloggdGame> BackloggdGamesList { get; set; } = new List<BackloggdGame>();
+    }
 
     public class BackloggdStatusSettingsViewModel : ObservableObject, ISettings
     {
@@ -102,7 +102,7 @@ namespace BackloggdStatus
             // List of errors is presented to user if verification fails.
             errors = new List<string>();
 
-            if (Settings.BackloggdURLs == null || !Settings.BackloggdURLs.Any())
+            if (Settings.BackloggdGamesList == null || !Settings.BackloggdGamesList.Any())
             {
                 errors.Add("No Backloggd URLs have been configured.");
             }
@@ -115,43 +115,12 @@ namespace BackloggdStatus
     public class BackloggdGame : ObservableObject
     {
         [DontSerialize]
+        private readonly IPlayniteAPI PlayniteApi = PlayniteApiProvider.Api;
+
+        [DontSerialize]
         private static readonly ILogger logger = LogManager.GetLogger();
 
-        private Guid gameId;
-        public Guid GameId
-        {
-            get => gameId;
-            set => SetValue(ref gameId, value);
-        }
-
-        private bool urlSet = false;
-        public bool URLSet
-        {
-            get => urlSet;
-            set => SetValue(ref urlSet, value);
-        }
-
-        private bool wishlist = false;
-        public bool Wishlist
-        {
-            get => wishlist;
-            private set => SetValue(ref wishlist, value);
-        }
-
-        private bool backlog = false;
-        public bool Backlog
-        {
-            get => backlog;
-            private set => SetValue(ref backlog, value);
-        }
-
-        private bool playing = false;
-        public bool Playing
-        {
-            get => playing;
-            private set => SetValue(ref playing, value);
-        }
-
+        [DontSerialize]
         public enum PlayedStatus
         {
             Played,
@@ -161,13 +130,12 @@ namespace BackloggdStatus
             Abandoned
         };
 
-        private PlayedStatus? played = null;
-        public PlayedStatus? Played
+        private Guid gameId;
+        public Guid GameId
         {
-            get => played;
-            private set => SetValue(ref played, value);
+            get => gameId;
+            set => SetValue(ref gameId, value);
         }
-
 
         private string backloggdName = "Game not set";
         public string BackloggdName
@@ -176,95 +144,40 @@ namespace BackloggdStatus
             private set => SetValue(ref backloggdName, value);
         }
 
-        [DontSerialize]
-        private readonly IPlayniteAPI PlayniteApi = PlayniteApiProvider.Api;
-
-
-        public void RefreshStatus(IWebView webView = null)
+        private string backloggdUrl;
+        public string BackloggdUrl
         {
-            try
-            {
-                Game game = PlayniteApi.Database.Games.Get(GameId);
-
-                // Attempt to find the Backloggd URL in the game's links.
-                Link gameURL = game.Links?.FirstOrDefault(link => link.Url.Contains("backloggd.com/games"));
-
-                if (gameURL == null)
-                {
-                    URLSet = false;
-                    return;
-                }
-
-                URLSet = true;
-
-                // Retrieve game status using the BackloggdClient
-                List<string> status;
-                if (webView != null)
-                {
-                    BackloggdClient backloggdClient = new BackloggdClient(webView);
-                    logger.Debug("Calling RefreshStatus in BackloggdGame");
-                    BackloggdName = backloggdClient.GetBackloggdName(gameURL.Url);
-                    status = backloggdClient.GetGameStatus(gameURL.Url);
-                }
-                else
-                {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        logger.Debug("Calling RefreshStatus in BackloggdGame");
-                        BackloggdName = backloggdClient.GetBackloggdName(gameURL.Url);
-                        status = backloggdClient.GetGameStatus(gameURL.Url);
-                    }
-                }
-
-                SetStatus(status);
-            }
-            catch (Exception ex)
-            {
-                logger.Error($"Error refreshing status for game ID {GameId}: {ex.Message}");
-            }
+            get => backloggdUrl;
+            private set => SetValue(ref backloggdUrl, value);
         }
 
-        private void SetStatus(List<string> status)
+        private bool playing;
+        public bool Playing
         {
-            Wishlist = false;
-            Backlog = false;
-            Playing = false;
-            Played = null;
-
-            foreach (string s in status)
-            {
-                switch (s.ToLowerInvariant())
-                {
-                    case "wishlist":
-                        Wishlist = true;
-                        break;
-                    case "backlog":
-                        Backlog = true;
-                        break;
-                    case "playing":
-                        Playing = true;
-                        break;
-                    case "played":
-                        Played = PlayedStatus.Played;
-                        break;
-                    case "completed":
-                        Played = PlayedStatus.Completed;
-                        break;
-                    case "retired":
-                        Played = PlayedStatus.Retired;
-                        break;
-                    case "shelved":
-                        Played = PlayedStatus.Shelved;
-                        break;
-                    case "abandoned":
-                        Played = PlayedStatus.Abandoned;
-                        break;
-                    default:
-                        logger.Warn("Unrecognized Status");
-                        break;
-                }
-            }
+            get => playing;
+            private set => SetValue(ref playing, value);
         }
+
+        private bool backlog;
+        public bool Backlog
+        {
+            get => backlog;
+            private set => SetValue(ref backlog, value);
+        }
+
+        private bool wishlist;
+        public bool Wishlist
+        {
+            get => wishlist;
+            private set => SetValue(ref wishlist, value);
+        }
+
+        private PlayedStatus? played;
+        public PlayedStatus? Played
+        {
+            get => played;
+            private set => SetValue(ref played, value);
+        }
+
     }
 }

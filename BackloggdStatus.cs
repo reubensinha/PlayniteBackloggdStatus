@@ -70,13 +70,13 @@ namespace BackloggdStatus
                 {
                     foreach (var game in args.AddedItems)
                     {
-                        if (settings.Settings.BackloggdURLs.FirstOrDefault(x => x.GameId == game.Id) == null)
+                        if (settings.Settings.BackloggdGamesList.FirstOrDefault(x => x.GameId == game.Id) == null)
                         {
-                            settings.Settings.BackloggdURLs.Add(new BackloggdGame
+                            settings.Settings.BackloggdGamesList.Add(new BackloggdGame
                             {
                                 GameId = game.Id
                             });
-                            logger.Info($"Added new game {game.Name} to BackloggdURLs.");
+                            logger.Info($"Added new game {game.Name} to BackloggdGamesList.");
                         }
                     }
                 }
@@ -85,8 +85,8 @@ namespace BackloggdStatus
                 {
                     foreach (var game in args.RemovedItems)
                     {
-                        settings.Settings.BackloggdURLs.RemoveAll(x => x.GameId == game.Id);
-                        logger.Info($"Removed game {game.Name} from BackloggdURLs.");
+                        settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == game.Id);
+                        logger.Info($"Removed game {game.Name} from BackloggdGamesList.");
                     }
                 }
 
@@ -98,7 +98,7 @@ namespace BackloggdStatus
         {
             logger.Trace("Backloggd: Synchronizing settings with library.");
 
-            var currentGameIds = settings.Settings.BackloggdURLs.Select(binder => binder.GameId).ToHashSet();
+            var currentGameIds = settings.Settings.BackloggdGamesList.Select(binder => binder.GameId).ToHashSet();
             var libraryGames = PlayniteApi.Database.Games;
 
             // Add missing games to the settings
@@ -106,16 +106,16 @@ namespace BackloggdStatus
             {
                 if (!currentGameIds.Contains(game.Id))
                 {
-                    settings.Settings.BackloggdURLs.Add(new BackloggdGame
+                    settings.Settings.BackloggdGamesList.Add(new BackloggdGame
                     {
                         GameId = game.Id
                     });
-                    logger.Info($"Synchronized game {game.Name} into BackloggdURLs.");
+                    logger.Info($"Synchronized game {game.Name} into BackloggdGamesList.");
                 }
             }
 
             // Remove games from the settings that are no longer in the library
-            settings.Settings.BackloggdURLs.RemoveAll(binder => !libraryGames.Any(game => game.Id == binder.GameId));
+            settings.Settings.BackloggdGamesList.RemoveAll(binder => !libraryGames.Any(game => game.Id == binder.GameId));
 
             SavePluginSettings(settings.Settings);
         }
@@ -134,7 +134,7 @@ namespace BackloggdStatus
                 Action = (arg1) =>
                 {
                     logger.Info("Clearing BackloggdStatus settings data.");
-                    settings.Settings.BackloggdURLs.Clear();
+                    settings.Settings.BackloggdGamesList.Clear();
                     SavePluginSettings(settings.Settings);
                     SynchronizeSettingsWithLibrary();
                 }
@@ -269,12 +269,12 @@ namespace BackloggdStatus
                 metadataLink = args.Games[0].Links.Select(link => link).FirstOrDefault(link => link.Name == "Backloggd");
             }
 
-            BackloggdGame game = settings.Settings.BackloggdURLs.FirstOrDefault(x => x.GameId == args.Games[0].Id);
+            BackloggdGame game = settings.Settings.BackloggdGamesList.FirstOrDefault(x => x.GameId == args.Games[0].Id);
             if (game == null)
             {
                 // Handle the case where no matching element is found
                 logger.Error("No matching BackloggdGame found for the game.");
-                settings.Settings.BackloggdURLs.RemoveAll(x => x.GameId == game.GameId);
+                settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == game.GameId);
                 SavePluginSettings(settings.Settings);
 
                 yield break;
@@ -639,13 +639,13 @@ namespace BackloggdStatus
         {
             // Add code to be executed when Playnite is initialized.
             logger.Info("Revalidating statuses for all games on application startup.");
-            foreach (var binder in settings.Settings.BackloggdURLs.ToList())
+            foreach (var binder in settings.Settings.BackloggdGamesList.ToList())
             {
                 var game = PlayniteApi.Database.Games.FirstOrDefault(g => g.Id == binder.GameId);
                 if (game == null)
                 {
-                    settings.Settings.BackloggdURLs.Remove(binder);
-                    logger.Info($"Removed missing game with ID {binder.GameId} from BackloggdURLs.");
+                    settings.Settings.BackloggdGamesList.Remove(binder);
+                    logger.Info($"Removed missing game with ID {binder.GameId} from BackloggdGamesList.");
                 }
                 else
                 {
@@ -687,8 +687,8 @@ namespace BackloggdStatus
         public override void OnGameUninstalled(OnGameUninstalledEventArgs args)
         {
             // Add code to be executed when game is uninstalled.
-            logger.Info($"Game uninstalled: {args.Game.Name}. Removing from BackloggdURLs.");
-            settings.Settings.BackloggdURLs.RemoveAll(x => x.GameId == args.Game.Id);
+            logger.Info($"Game uninstalled: {args.Game.Name}. Removing from BackloggdGamesList.");
+            settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == args.Game.Id);
             SavePluginSettings(settings.Settings);
         }
 
