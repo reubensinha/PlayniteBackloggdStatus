@@ -1,22 +1,23 @@
-﻿using Playnite.SDK;
+﻿using AngleSharp;
+using AngleSharp.Extensions;
+using AngleSharp.Parser.Html;
+using Playnite.SDK;
+using Playnite.SDK.Data;
 using Playnite.SDK.Events;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
-using Playnite.SDK.Data;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Eventing.Reader;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Policy;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
-using System.Security.Policy;
-using AngleSharp.Parser.Html;
-using AngleSharp;
-using AngleSharp.Extensions;
 using System.Windows.Navigation;
+using static BackloggdStatus.BackloggdGame;
 
 namespace BackloggdStatus
 {
@@ -27,14 +28,7 @@ namespace BackloggdStatus
         private IWebView webView;
 
         public const string baseUrl = @"https://backloggd.com";
-
-        
-
-
-        
         private const bool verbose = true;
-
-        
 
         private readonly Dictionary<string, string> statusMapper = new Dictionary<string, string>
         {
@@ -171,64 +165,51 @@ namespace BackloggdStatus
             }
 
             string backloggdURL = game.BackloggdUrl;
+            Guid gameID = game.GameId;
 
-            return GetGameFromURL(backloggdURL);
+            return GetGameFromURL(backloggdURL, gameID);
         }
 
-        public BackloggdGame GetGameFromURL(string backloggdURL)
+        public BackloggdGame GetGameFromURL(string backloggdURL, Guid gameID)
         {
             if (verbose)
             {
                 logger.Trace("GetGameFromURL method called");
             }
+
             if (string.IsNullOrEmpty(backloggdURL))
             {
                 logger.Error("Game URL is null or empty in GetGameFromURL method.");
                 return null;
             }
+
             logger.Debug($"Opening WebView to: {backloggdURL}");
             webView.NavigateAndWait(backloggdURL);
+
             string pagesource = webView.GetPageSource();
             var parser = new HtmlParser();
             var document = parser.Parse(pagesource);
+
+
             var gameNameElement = document.QuerySelector("#title > div.col-12.px-1 > div > div > h1");
-            
+            if (gameNameElement == null)
+            {
+                logger.Error("Game name not found");
+                return null;
+            }
 
-            throw new NotImplementedException("GetGameFromURL method is not fully implemented yet.");
-        }
+            var playingBool = false;
+            var backlogBool = false;
+            var wishlistBool = false;
+            BackloggdGame.PlayedStatus? playedStatus = null;
 
-
-
-
-
-
-        /// <summary>
-        /// Takes a url string of a game on Backloggd.com
-        /// returns a list of all the statuses the user has set for that game.
-        /// </summary>
-        public List<string> GetGameStatus(string gameUrl)
-        {
-            List<string> statusList;
-            string playStatus;
-
-            logger.Debug("Public GetGameStatus");
-
-            logger.Debug($"Opening WebView to: {gameUrl}");
-
-            webView.NavigateAndWait(gameUrl);
-            string pagesource = webView.GetPageSource();
-
-            var parser = new HtmlParser();
-            var document = parser.Parse(pagesource);
 
             var statusElements = document.QuerySelectorAll("#buttons > .btn-play-fill");
-            statusList = statusElements.Select(el => el.ClassName).ToList();
-
+            var statusList = statusElements.Select(el => el.ClassName).ToList();
+            //statusList = statusList.Select(SetStatusString).ToList();
 
             var playedStatusElement = document.GetElementsByClassName("button-link btn-play mx-auto")[0];
-            playStatus = playedStatusElement.GetAttribute("play_type");
-
-            statusList = statusList.Select(SetStatusString).ToList();
+            var playStatus = playedStatusElement.GetAttribute("play_type");
 
             // Played Status is always first in the list.
             if (playStatus != null)
@@ -236,48 +217,52 @@ namespace BackloggdStatus
                 statusList[0] = playStatus;
             }
 
-            return statusList;
-        }
-
-        private string SetStatusString(string status)
-        {
-            logger.Debug("SetStatusString");
-
-            foreach (var key in statusMapper.Keys)
+            foreach (var status in statusList)
             {
-                if (status.Contains(key))
+                switch(status)
                 {
-                    return statusMapper[key];
+                    case "wishlist-btn-container":
+                        wishlistBool = true;
+                        break;
+                    case "backlog-btn-container":
+                        backlogBool = true;
+                        break;
+                    case "playing-btn-container":
+                        playingBool = true;
+                        break;
+                    case "played":
+                        playedStatus = BackloggdGame.PlayedStatus.Played;
+                        break;
+                    case "completed":
+                        playedStatus = BackloggdGame.PlayedStatus.Completed;
+                        break;
+                    case "retired":
+                        playedStatus = BackloggdGame.PlayedStatus.Retired;
+                        break;
+                    case "shelved":
+                        playedStatus = BackloggdGame.PlayedStatus.Shelved;
+                        break;
+                    case "abandoned":
+                        playedStatus = BackloggdGame.PlayedStatus.Abandoned;
+                        break;
                 }
             }
 
-            return "Unknown";
-        }
 
-
-        public string GetBackloggdName(string gameUrl)
-        {
-            string gameName;
-
-            logger.Debug("Public GetBackloggdName");
-
-            webView.NavigateAndWait(gameUrl);
-            string pagesource = webView.GetPageSource();
-
-            var parser = new HtmlParser();
-            var document = parser.Parse(pagesource);
             
-            var gameElement = document.QuerySelector("#title > div.col-12.px-1 > div > div > h1");
-            if (gameElement == null)
+
+            BackloggdGame game = new BackloggdGame
             {
-                throw new Exception("GameName not found");
-            }
+                GameId = gameID,
+                BackloggdName = gameNameElement.TextContent.Trim(),
+                BackloggdUrl = backloggdURL,
+                Playing = playingBool,
+                Backlog = backlogBool,
+                Wishlist = wishlistBool,
+                Played = playedStatus
+            };
 
-            gameName = gameElement.TextContent;
-
-            logger.Debug($"GameName set to {gameName}");
-
-            return gameName;
+            return game;
         }
 
 

@@ -144,42 +144,42 @@ namespace BackloggdStatus
         public string BackloggdName
         {
             get => backloggdName;
-            private set => SetValue(ref backloggdName, value);
+            set => SetValue(ref backloggdName, value);
         }
 
         private string backloggdUrl;
         public string BackloggdUrl
         {
             get => backloggdUrl;
-            private set => SetValue(ref backloggdUrl, value);
+            set => SetValue(ref backloggdUrl, value);
         }
 
         private bool playing;
         public bool Playing
         {
             get => playing;
-            private set => SetValue(ref playing, value);
+            set => SetValue(ref playing, value);
         }
 
         private bool backlog;
         public bool Backlog
         {
             get => backlog;
-            private set => SetValue(ref backlog, value);
+            set => SetValue(ref backlog, value);
         }
 
         private bool wishlist;
         public bool Wishlist
         {
             get => wishlist;
-            private set => SetValue(ref wishlist, value);
+            set => SetValue(ref wishlist, value);
         }
 
         private PlayedStatus? played;
         public PlayedStatus? Played
         {
             get => played;
-            private set => SetValue(ref played, value);
+            set => SetValue(ref played, value);
         }
 
     }
