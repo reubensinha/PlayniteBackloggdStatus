@@ -24,7 +24,7 @@ namespace BackloggdStatus
         
         // Playnite serializes settings object to a JSON object and saves it as text file.
         // If you want to exclude some property from being saved then use `JsonDontSerialize` ignore attribute.
-        public List<BackloggdURLBinder> BackloggdURLs { get; set; } = new List<BackloggdURLBinder>();
+        public List<BackloggdGame> BackloggdURLs { get; set; } = new List<BackloggdGame>();
         }
 
     public class BackloggdStatusSettingsViewModel : ObservableObject, ISettings
@@ -112,7 +112,7 @@ namespace BackloggdStatus
 
     }
 
-    public class BackloggdURLBinder : ObservableObject
+    public class BackloggdGame : ObservableObject
     {
         [DontSerialize]
         private static readonly ILogger logger = LogManager.GetLogger();
@@ -202,7 +202,7 @@ namespace BackloggdStatus
                 if (webView != null)
                 {
                     BackloggdClient backloggdClient = new BackloggdClient(webView);
-                    logger.Debug("Calling RefreshStatus in BackloggdURLBinder");
+                    logger.Debug("Calling RefreshStatus in BackloggdGame");
                     BackloggdName = backloggdClient.GetBackloggdName(gameURL.Url);
                     status = backloggdClient.GetGameStatus(gameURL.Url);
                 }
@@ -211,7 +211,7 @@ namespace BackloggdStatus
                     using (var view = PlayniteApi.WebViews.CreateOffscreenView())
                     {
                         BackloggdClient backloggdClient = new BackloggdClient(view);
-                        logger.Debug("Calling RefreshStatus in BackloggdURLBinder");
+                        logger.Debug("Calling RefreshStatus in BackloggdGame");
                         BackloggdName = backloggdClient.GetBackloggdName(gameURL.Url);
                         status = backloggdClient.GetGameStatus(gameURL.Url);
                     }

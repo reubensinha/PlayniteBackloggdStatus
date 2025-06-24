@@ -72,7 +72,7 @@ namespace BackloggdStatus
                     {
                         if (settings.Settings.BackloggdURLs.FirstOrDefault(x => x.GameId == game.Id) == null)
                         {
-                            settings.Settings.BackloggdURLs.Add(new BackloggdURLBinder
+                            settings.Settings.BackloggdURLs.Add(new BackloggdGame
                             {
                                 GameId = game.Id
                             });
@@ -106,7 +106,7 @@ namespace BackloggdStatus
             {
                 if (!currentGameIds.Contains(game.Id))
                 {
-                    settings.Settings.BackloggdURLs.Add(new BackloggdURLBinder
+                    settings.Settings.BackloggdURLs.Add(new BackloggdGame
                     {
                         GameId = game.Id
                     });
@@ -269,11 +269,11 @@ namespace BackloggdStatus
                 metadataLink = args.Games[0].Links.Select(link => link).FirstOrDefault(link => link.Name == "Backloggd");
             }
 
-            BackloggdURLBinder game = settings.Settings.BackloggdURLs.FirstOrDefault(x => x.GameId == args.Games[0].Id);
+            BackloggdGame game = settings.Settings.BackloggdURLs.FirstOrDefault(x => x.GameId == args.Games[0].Id);
             if (game == null)
             {
                 // Handle the case where no matching element is found
-                logger.Error("No matching BackloggdURLBinder found for the game.");
+                logger.Error("No matching BackloggdGame found for the game.");
                 settings.Settings.BackloggdURLs.RemoveAll(x => x.GameId == game.GameId);
                 SavePluginSettings(settings.Settings);
 
