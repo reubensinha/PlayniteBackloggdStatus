@@ -20,7 +20,7 @@ using System.Windows.Navigation;
 
 namespace BackloggdStatus
 {
-    public class BackloggdClient
+    public class BackloggdAPI
     {
         private readonly IPlayniteAPI PlayniteApi = PlayniteApiProvider.Api;
         private static readonly ILogger logger = LogManager.GetLogger();
@@ -57,7 +57,7 @@ namespace BackloggdStatus
             { "Unplayed", "0" }
         };
 
-        public BackloggdClient(IWebView webView)
+        public BackloggdAPI(IWebView webView)
         {
             this.webView = webView;
         }
