@@ -24,11 +24,11 @@ namespace BackloggdStatus
     {
         private readonly IPlayniteAPI PlayniteApi = PlayniteApiProvider.Api;
         private static readonly ILogger logger = LogManager.GetLogger();
-        private readonly IWebView webView;
+        private IWebView webView;
 
         public const string baseUrl = @"https://backloggd.com";
 
-        private string loginUrl = $@"{baseUrl}/users/sign_in";
+        
 
 
         
@@ -57,9 +57,9 @@ namespace BackloggdStatus
             { "Unplayed", "0" }
         };
 
-        public BackloggdAPI(IWebView webView)
+        public BackloggdAPI()
         {
-            this.webView = webView;
+            webView = PlayniteApi.WebViews.CreateOffscreenView();
         }
 
         /// <summary>
@@ -69,18 +69,30 @@ namespace BackloggdStatus
         {
             logger.Trace("Login method called");
 
+            string loginUrl = $@"{baseUrl}/users/sign_in";
+
             Logout();
             webView.Navigate(loginUrl);
             logger.Info("Navigating to Backloggd Login");
             webView.OpenDialog();
 
-            //webView.LoadingChanged += (s, e) =>
-            //{
-            //    if (webView.GetCurrentAddress() == baseUrl)
-            //    {
-            //        webView.Close();
-            //    }
-            //};
+
+            webView.LoadingChanged += async (s, e) =>
+            {
+                var url = webView.GetCurrentAddress();
+                if (!url.EndsWith("sign_in"))
+                {
+                    var loggedIn = await Task.Run(() => IsUserLoggedIn());
+                    if (loggedIn)
+                    {
+                        webView.Close();
+                    }
+                }
+            };
+
+            Logout();
+            webView.Navigate(loginUrl);
+            webView.OpenDialog();
         }
 
         /// <summary>
@@ -134,6 +146,61 @@ namespace BackloggdStatus
             webView.DeleteDomainCookies(".backloggd.com");
             webView.DeleteDomainCookies("www.backloggd.com");
         }
+
+        /// <summary>
+        /// Logs out of Backloggd.com by deleting cookies.
+        /// </summary>
+        public void Logout()
+        {
+            DeleteCookies();
+            //IsUserLoggedIn();
+        }
+
+
+        public BackloggdGame RefreshStatus(BackloggdGame game)
+        {
+            if (verbose)
+            {
+                logger.Trace("RefreshStatus method called");
+            }
+
+            if (game == null)
+            {
+                logger.Error("Game is null in RefreshStatus method.");
+                return null;
+            }
+
+            string backloggdURL = game.BackloggdUrl;
+
+            return GetGameFromURL(backloggdURL);
+        }
+
+        public BackloggdGame GetGameFromURL(string backloggdURL)
+        {
+            if (verbose)
+            {
+                logger.Trace("GetGameFromURL method called");
+            }
+            if (string.IsNullOrEmpty(backloggdURL))
+            {
+                logger.Error("Game URL is null or empty in GetGameFromURL method.");
+                return null;
+            }
+            logger.Debug($"Opening WebView to: {backloggdURL}");
+            webView.NavigateAndWait(backloggdURL);
+            string pagesource = webView.GetPageSource();
+            var parser = new HtmlParser();
+            var document = parser.Parse(pagesource);
+            var gameNameElement = document.QuerySelector("#title > div.col-12.px-1 > div > div > h1");
+            
+
+            throw new NotImplementedException("GetGameFromURL method is not fully implemented yet.");
+        }
+
+
+
+
+
 
         /// <summary>
         /// Takes a url string of a game on Backloggd.com
@@ -234,14 +301,7 @@ namespace BackloggdStatus
 
         }
 
-        /// <summary>
-        /// Logs out of Backloggd.com by deleting cookies.
-        /// </summary>
-        public void Logout()
-        {
-            DeleteCookies();
-            //IsUserLoggedIn();
-        }
+        
 
         /// <summary>
         /// Generates the JavaScript needed to toggle the game's status based on the status parameter.
