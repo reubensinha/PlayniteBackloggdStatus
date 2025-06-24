@@ -23,7 +23,7 @@ namespace BackloggdStatus
     {
         private static readonly ILogger logger = LogManager.GetLogger();
 
-        private BackloggdStatusSettingsViewModel settings { get; set; }
+        public BackloggdStatusSettingsViewModel Settings { get; set; }
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
 
         private bool debug = false;
@@ -41,7 +41,7 @@ namespace BackloggdStatus
 
             PlayniteApiProvider.Api = api;
 
-            settings = new BackloggdStatusSettingsViewModel(this, api);
+            Settings = new BackloggdStatusSettingsViewModel(this, api);
             Properties = new GenericPluginProperties
             {
                 HasSettings = true
@@ -70,9 +70,9 @@ namespace BackloggdStatus
                 {
                     foreach (var game in args.AddedItems)
                     {
-                        if (settings.Settings.BackloggdGamesList.FirstOrDefault(x => x.GameId == game.Id) == null)
+                        if (Settings.Settings.BackloggdGamesList.FirstOrDefault(x => x.GameId == game.Id) == null)
                         {
-                            settings.Settings.BackloggdGamesList.Add(new BackloggdGame
+                            Settings.Settings.BackloggdGamesList.Add(new BackloggdGame
                             {
                                 GameId = game.Id
                             });
@@ -85,12 +85,12 @@ namespace BackloggdStatus
                 {
                     foreach (var game in args.RemovedItems)
                     {
-                        settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == game.Id);
+                        Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == game.Id);
                         logger.Info($"Removed game {game.Name} from BackloggdGamesList.");
                     }
                 }
 
-                SavePluginSettings(settings.Settings);
+                SavePluginSettings(Settings.Settings);
             };
         }
 
@@ -98,7 +98,7 @@ namespace BackloggdStatus
         {
             logger.Trace("Backloggd: Synchronizing settings with library.");
 
-            var currentGameIds = settings.Settings.BackloggdGamesList.Select(binder => binder.GameId).ToHashSet();
+            var currentGameIds = Settings.Settings.BackloggdGamesList.Select(binder => binder.GameId).ToHashSet();
             var libraryGames = PlayniteApi.Database.Games;
 
             // Add missing games to the settings
@@ -106,7 +106,7 @@ namespace BackloggdStatus
             {
                 if (!currentGameIds.Contains(game.Id))
                 {
-                    settings.Settings.BackloggdGamesList.Add(new BackloggdGame
+                    Settings.Settings.BackloggdGamesList.Add(new BackloggdGame
                     {
                         GameId = game.Id
                     });
@@ -115,9 +115,9 @@ namespace BackloggdStatus
             }
 
             // Remove games from the settings that are no longer in the library
-            settings.Settings.BackloggdGamesList.RemoveAll(binder => !libraryGames.Any(game => game.Id == binder.GameId));
+            Settings.Settings.BackloggdGamesList.RemoveAll(binder => !libraryGames.Any(game => game.Id == binder.GameId));
 
-            SavePluginSettings(settings.Settings);
+            SavePluginSettings(Settings.Settings);
         }
 
 
@@ -134,8 +134,8 @@ namespace BackloggdStatus
                 Action = (arg1) =>
                 {
                     logger.Info("Clearing BackloggdStatus settings data.");
-                    settings.Settings.BackloggdGamesList.Clear();
-                    SavePluginSettings(settings.Settings);
+                    Settings.Settings.BackloggdGamesList.Clear();
+                    SavePluginSettings(Settings.Settings);
                     SynchronizeSettingsWithLibrary();
                 }
             };
@@ -269,13 +269,13 @@ namespace BackloggdStatus
                 metadataLink = args.Games[0].Links.Select(link => link).FirstOrDefault(link => link.Name == "Backloggd");
             }
 
-            BackloggdGame game = settings.Settings.BackloggdGamesList.FirstOrDefault(x => x.GameId == args.Games[0].Id);
+            BackloggdGame game = Settings.Settings.BackloggdGamesList.FirstOrDefault(x => x.GameId == args.Games[0].Id);
             if (game == null)
             {
                 // Handle the case where no matching element is found
                 logger.Error("No matching BackloggdGame found for the game.");
-                settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == game.GameId);
-                SavePluginSettings(settings.Settings);
+                Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == game.GameId);
+                SavePluginSettings(Settings.Settings);
 
                 yield break;
             }
@@ -327,7 +327,7 @@ namespace BackloggdStatus
 
                         }
                         game.RefreshStatus();
-                        SavePluginSettings(settings.Settings);
+                        SavePluginSettings(Settings.Settings);
                     }
                 };
 
@@ -341,7 +341,7 @@ namespace BackloggdStatus
                 Action = (arg1) =>
                 {
                     game.RefreshStatus();
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -372,7 +372,7 @@ namespace BackloggdStatus
                             backloggdClient.ToggleStatusAsync(metadataLink.Url, "unset-played-btn").GetAwaiter().GetResult();
                             game.RefreshStatus(view);
                         }
-                        SavePluginSettings(settings.Settings);
+                        SavePluginSettings(Settings.Settings);
                     }
                 };
             }
@@ -391,7 +391,7 @@ namespace BackloggdStatus
                             backloggdClient.ToggleStatusAsync(metadataLink.Url, "Playing").GetAwaiter().GetResult();
                             game.RefreshStatus(view);
                         }
-                        SavePluginSettings(settings.Settings);
+                        SavePluginSettings(Settings.Settings);
                     }
                 };
             }
@@ -410,7 +410,7 @@ namespace BackloggdStatus
                             backloggdClient.ToggleStatusAsync(metadataLink.Url, "Backlog").GetAwaiter().GetResult();
                             game.RefreshStatus(view);
                         }
-                        SavePluginSettings(settings.Settings);
+                        SavePluginSettings(Settings.Settings);
                     }
                 };
             }
@@ -429,7 +429,7 @@ namespace BackloggdStatus
                             backloggdClient.ToggleStatusAsync(metadataLink.Url, "Wishlist").GetAwaiter().GetResult();
                             game.RefreshStatus(view);
                         }
-                        SavePluginSettings(settings.Settings);
+                        SavePluginSettings(Settings.Settings);
                     }
                 };
             }
@@ -454,7 +454,7 @@ namespace BackloggdStatus
                         backloggdClient.ToggleStatusAsync(metadataLink.Url, "played").GetAwaiter().GetResult();
                         game.RefreshStatus(view);
                     }
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -471,7 +471,7 @@ namespace BackloggdStatus
                         backloggdClient.ToggleStatusAsync(metadataLink.Url, "completed").GetAwaiter().GetResult();
                         game.RefreshStatus(view);
                     }
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -488,7 +488,7 @@ namespace BackloggdStatus
                         backloggdClient.ToggleStatusAsync(metadataLink.Url, "retired").GetAwaiter().GetResult();
                         game.RefreshStatus(view);
                     }
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -505,7 +505,7 @@ namespace BackloggdStatus
                         backloggdClient.ToggleStatusAsync(metadataLink.Url, "shelved").GetAwaiter().GetResult();
                         game.RefreshStatus(view);
                     }
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -522,7 +522,7 @@ namespace BackloggdStatus
                         backloggdClient.ToggleStatusAsync(metadataLink.Url, "abandoned").GetAwaiter().GetResult();
                         game.RefreshStatus(view);
                     }
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -539,7 +539,7 @@ namespace BackloggdStatus
                         backloggdClient.ToggleStatusAsync(metadataLink.Url, "Playing").GetAwaiter().GetResult();
                         game.RefreshStatus(view);
                     }
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -556,7 +556,7 @@ namespace BackloggdStatus
                         backloggdClient.ToggleStatusAsync(metadataLink.Url, "Backlog").GetAwaiter().GetResult();
                         game.RefreshStatus(view);
                     }
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -573,7 +573,7 @@ namespace BackloggdStatus
                         backloggdClient.ToggleStatusAsync(metadataLink.Url, "Wishlist").GetAwaiter().GetResult();
                         game.RefreshStatus(view);
                     }
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -596,7 +596,7 @@ namespace BackloggdStatus
                         backloggdClient.OpenWebView(metadataLink.Url);
                         game.RefreshStatus(view);
                     }
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -622,7 +622,7 @@ namespace BackloggdStatus
                         args.Games[0].Links.Remove(metadataLink);
                     }
                     game.RefreshStatus();
-                    SavePluginSettings(settings.Settings);
+                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -639,12 +639,12 @@ namespace BackloggdStatus
         {
             // Add code to be executed when Playnite is initialized.
             logger.Info("Revalidating statuses for all games on application startup.");
-            foreach (var binder in settings.Settings.BackloggdGamesList.ToList())
+            foreach (var binder in Settings.Settings.BackloggdGamesList.ToList())
             {
                 var game = PlayniteApi.Database.Games.FirstOrDefault(g => g.Id == binder.GameId);
                 if (game == null)
                 {
-                    settings.Settings.BackloggdGamesList.Remove(binder);
+                    Settings.Settings.BackloggdGamesList.Remove(binder);
                     logger.Info($"Removed missing game with ID {binder.GameId} from BackloggdGamesList.");
                 }
                 else
@@ -653,7 +653,7 @@ namespace BackloggdStatus
                 }
             }
 
-            SavePluginSettings(settings.Settings);
+            SavePluginSettings(Settings.Settings);
         }
 
         public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
@@ -688,13 +688,13 @@ namespace BackloggdStatus
         {
             // Add code to be executed when game is uninstalled.
             logger.Info($"Game uninstalled: {args.Game.Name}. Removing from BackloggdGamesList.");
-            settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == args.Game.Id);
-            SavePluginSettings(settings.Settings);
+            Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == args.Game.Id);
+            SavePluginSettings(Settings.Settings);
         }
 
         public override ISettings GetSettings(bool firstRunSettings)
         {
-            return settings;
+            return Settings;
         }
 
         public override UserControl GetSettingsView(bool firstRunSettings)

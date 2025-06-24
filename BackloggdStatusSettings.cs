@@ -70,6 +70,11 @@ namespace BackloggdStatus
 
                 logger.Debug("New Settings created");
             }
+
+            if (Settings.BackloggdGamesList == null)
+            {
+                Settings.BackloggdGamesList = new List<BackloggdGame>();
+            }
         }
 
 
@@ -93,6 +98,9 @@ namespace BackloggdStatus
             // Code executed when user decides to confirm changes made since BeginEdit was called.
             // This method should save settings made to Option1 and Option2.
             plugin.SavePluginSettings(Settings);
+            plugin.Settings = this;
+
+            this.OnPropertyChanged();
         }
 
         public bool VerifySettings(out List<string> errors)
@@ -102,12 +110,7 @@ namespace BackloggdStatus
             // List of errors is presented to user if verification fails.
             errors = new List<string>();
 
-            if (Settings.BackloggdGamesList == null || !Settings.BackloggdGamesList.Any())
-            {
-                errors.Add("No Backloggd URLs have been configured.");
-            }
-
-            return !errors.Any();
+            return true;
         }
 
     }
