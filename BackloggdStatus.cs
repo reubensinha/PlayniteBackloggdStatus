@@ -25,6 +25,7 @@ namespace BackloggdStatus
 
         public BackloggdStatusSettingsViewModel Settings { get; set; }
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
+        public BackloggdAPI backloggdAPI = new BackloggdAPI();
 
         private bool debug = false;
 
@@ -47,11 +48,8 @@ namespace BackloggdStatus
                 HasSettings = true
             };
 
-            using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-            {
-                BackloggdAPI backloggdAPI = new BackloggdAPI(view);
-                backloggdAPI.IsUserLoggedIn();
-            }
+            backloggdAPI.IsUserLoggedIn();
+
 
             InitializeLibrarySync();
 
@@ -149,12 +147,8 @@ namespace BackloggdStatus
                     Description = "Sign In",
                     Action = (arg1) => 
                     {
-                        using (var view = PlayniteApi.WebViews.CreateView(width, height))
-                        {
-                            BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                            backloggdClient.Login();
-                            backloggdClient.IsUserLoggedIn();
-                        }
+                        backloggdAPI.Login();
+                        backloggdAPI.IsUserLoggedIn();
                     }
                 };
             }
@@ -166,13 +160,9 @@ namespace BackloggdStatus
                     MenuSection = "@BackloggdStatus",
                     Description = "Sign Out",
                     Action = (arg1) => 
-                    { 
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                        {
-                            BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                            backloggdClient.Logout();
-                            backloggdClient.IsUserLoggedIn();
-                        }
+                    {
+                        backloggdAPI.Logout();
+                        backloggdAPI.IsUserLoggedIn();
                     }
                 };
             }
@@ -213,12 +203,8 @@ namespace BackloggdStatus
                 Description = "Sign In",
                 Action = (arg1) => 
                 {
-                    using (var view = PlayniteApi.WebViews.CreateView(width, height))
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.Login();
-                        backloggdClient.IsUserLoggedIn();
-                    }
+                    backloggdAPI.Login();
+                    backloggdAPI.IsUserLoggedIn();
                 }
             };
 
@@ -228,12 +214,8 @@ namespace BackloggdStatus
                 MenuSection = "@BackloggdStatus",
                 Description = "Open WebView",
                 Action = (args1) => 
-                { 
-                    using (var view = PlayniteApi.WebViews.CreateView(width, height)) 
-                    { 
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view); 
-                        backloggdClient.OpenWebView(); 
-                    } 
+                {
+                    backloggdAPI.OpenWebView();
                 }
             };
 
@@ -244,12 +226,8 @@ namespace BackloggdStatus
                 Description = "Sign Out",
                 Action = (arg1) =>
                 {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.Logout();
-                        backloggdClient.IsUserLoggedIn();
-                    }
+                    backloggdAPI.Logout();
+                    backloggdAPI.IsUserLoggedIn();
                 }
             };
         }
@@ -258,28 +236,16 @@ namespace BackloggdStatus
         {
             logger.Debug("GetGameMenuItems Called");
 
-            Link metadataLink;
+            //Link metadataLink;
 
-            if (args.Games[0].Links == null)
-            {
-                metadataLink = null;
-            }
-            else
-            {
-                metadataLink = args.Games[0].Links.Select(link => link).FirstOrDefault(link => link.Name == "Backloggd");
-            }
-
-            BackloggdGame game = Settings.Settings.BackloggdGamesList.FirstOrDefault(x => x.GameId == args.Games[0].Id);
-            if (game == null)
-            {
-                // Handle the case where no matching element is found
-                logger.Error("No matching BackloggdGame found for the game.");
-                Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == game.GameId);
-                SavePluginSettings(Settings.Settings);
-
-                yield break;
-            }
-
+            //if (args.Games[0].Links == null)
+            //{
+            //    metadataLink = null;
+            //}
+            //else
+            //{
+            //    metadataLink = args.Games[0].Links.Select(link => link).FirstOrDefault(link => link.Name == "Backloggd");
+            //}
 
             if (!loggedIn)
             {
@@ -290,49 +256,59 @@ namespace BackloggdStatus
                     Description = "Sign In",
                     Action = (arg1) =>
                     {
-                        using (var view = PlayniteApi.WebViews.CreateView(width, height))
-                        {
-                            BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                            backloggdClient.Login();
-                            backloggdClient.IsUserLoggedIn();
-                        }
+                        backloggdAPI.Login();
+                        backloggdAPI.IsUserLoggedIn();
                     }
                 };
 
                 yield break;
             }
 
-            if (metadataLink == null)
+            Game playniteGame = args.Games[0];
+            BackloggdGame backloggdGame = Settings.Settings.BackloggdGamesList.FirstOrDefault(x => x.GameId == playniteGame.Id);
+            if (backloggdGame == null)
             {
+                // Handle the case where no matching element is found
+                logger.Error("No matching BackloggdGame found for the game.");
+                Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == playniteGame.Id);
+                SavePluginSettings(Settings.Settings);
+
                 yield return new GameMenuItem
                 {
                     MenuSection = "BackloggdStatus",
                     Description = DefaultURL,
                     Action = (arg1) =>
                     {
-                        string url;
-                        using (var view = PlayniteApi.WebViews.CreateView(width, height))
+                        // TODO: Rework SetBackloggdUrl method.
+                        string url = backloggdAPI.SetBackloggdUrl(playniteGame.Name);
+                        if (url == null)
                         {
-                            BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                            url = backloggdClient.SetBackloggdUrl(args.Games[0].Name);
-
-                        }
-                        if (url.Contains($"{BackloggdAPI.baseUrl}/games"))
+                            PlayniteApi.Dialogs.ShowErrorMessage("Failed to get URL. Please try again.", "Backloggd Error");
+                            logger.Error("Failed to get URL from webView");
+                        } else if (url.Contains($"{BackloggdAPI.baseUrl}/games"))
                         {
-                            if (args.Games[0].Links == null)
-                            {
-                                args.Games[0].Links = new ObservableCollection<Link>();
-                            }
-                            args.Games[0].Links.Add(new Link("Backloggd", url));
+                            //if (args.Games[0].Links == null)
+                            //{
+                            //    args.Games[0].Links = new ObservableCollection<Link>();
+                            //}
+                            //args.Games[0].Links.Add(new Link("Backloggd", url));
 
+                            backloggdGame = backloggdAPI.GetGameFromURL(url, playniteGame.Id);
+
+                            Settings.Settings.BackloggdGamesList.Add(backloggdGame);
+                            SavePluginSettings(Settings.Settings);
+                        } 
+                        else
+                        {
+                            PlayniteApi.Dialogs.ShowErrorMessage("Not valid Backloggd Url", "Backloggd Error");
+                            logger.Debug($"Not valid Backloggd Url: {url}");
                         }
-                        game.RefreshStatus();
-                        SavePluginSettings(Settings.Settings);
                     }
                 };
 
                 yield break;
             }
+
 
             yield return new GameMenuItem
             {
@@ -340,7 +316,7 @@ namespace BackloggdStatus
                 Description = "Refresh Status",
                 Action = (arg1) =>
                 {
-                    game.RefreshStatus();
+                    backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                     SavePluginSettings(Settings.Settings);
                 }
             };
@@ -349,7 +325,7 @@ namespace BackloggdStatus
             yield return new GameMenuItem
             {
                 MenuSection = "BackloggdStatus",
-                Description = game.BackloggdName
+                Description = backloggdGame.BackloggdName
             };
 
             yield return new GameMenuItem
@@ -358,26 +334,22 @@ namespace BackloggdStatus
                 Description = "-"
             };
 
-            if (game.Played != null)
+            if (backloggdGame.Played != null)
             {
                 yield return new GameMenuItem
                 {
                     MenuSection = "BackloggdStatus",
-                    Description = game.Played.ToString(),
+                    Description = backloggdGame.Played.ToString(),
                     Action = (arg1) =>
                     {
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                        {
-                            BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                            backloggdClient.ToggleStatusAsync(metadataLink.Url, "unset-played-btn").GetAwaiter().GetResult();
-                            game.RefreshStatus(view);
-                        }
+                        backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "unset-played-btn").GetAwaiter().GetResult();
+                        backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                         SavePluginSettings(Settings.Settings);
                     }
                 };
             }
 
-            if (game.Playing)
+            if (backloggdGame.Playing)
             {
                 yield return new GameMenuItem
                 {
@@ -385,18 +357,14 @@ namespace BackloggdStatus
                     Description = "Playing",
                     Action = (arg1) =>
                     {
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                        {
-                            BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                            backloggdClient.ToggleStatusAsync(metadataLink.Url, "Playing").GetAwaiter().GetResult();
-                            game.RefreshStatus(view);
-                        }
+                        backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "Playing").GetAwaiter().GetResult();
+                        backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                         SavePluginSettings(Settings.Settings);
                     }
                 };
             }
 
-            if (game.Backlog)
+            if (backloggdGame.Backlog)
             {
                 yield return new GameMenuItem
                 {
@@ -404,18 +372,14 @@ namespace BackloggdStatus
                     Description = "Backlog",
                     Action = (arg1) =>
                     {
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                        {
-                            BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                            backloggdClient.ToggleStatusAsync(metadataLink.Url, "Backlog").GetAwaiter().GetResult();
-                            game.RefreshStatus(view);
-                        }
+                        backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "Backlog").GetAwaiter().GetResult();
+                        backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                         SavePluginSettings(Settings.Settings);
                     }
                 };
             }
 
-            if (game.Wishlist)
+            if (backloggdGame.Wishlist)
             {
                 yield return new GameMenuItem
                 {
@@ -423,12 +387,8 @@ namespace BackloggdStatus
                     Description = "Wishlist",
                     Action = (arg1) =>
                     {
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                        {
-                            BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                            backloggdClient.ToggleStatusAsync(metadataLink.Url, "Wishlist").GetAwaiter().GetResult();
-                            game.RefreshStatus(view);
-                        }
+                        backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "Wishlist").GetAwaiter().GetResult();
+                        backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                         SavePluginSettings(Settings.Settings);
                     }
                 };
@@ -448,12 +408,8 @@ namespace BackloggdStatus
                 Description = "Played",
                 Action = (arg1) =>
                 {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "played").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
+                    backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "played").GetAwaiter().GetResult();
+                    backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                     SavePluginSettings(Settings.Settings);
                 }
             };
@@ -465,12 +421,8 @@ namespace BackloggdStatus
                 Description = "Completed",
                 Action = (arg1) =>
                 {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "completed").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
+                    backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "completed").GetAwaiter().GetResult();
+                    backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                     SavePluginSettings(Settings.Settings);
                 }
             };
@@ -482,12 +434,8 @@ namespace BackloggdStatus
                 Description = "Retired",
                 Action = (arg1) =>
                 {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "retired").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
+                    backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "retired").GetAwaiter().GetResult();
+                    backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                     SavePluginSettings(Settings.Settings);
                 }
             };
@@ -499,12 +447,8 @@ namespace BackloggdStatus
                 Description = "Shelved",
                 Action = (arg1) =>
                 {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "shelved").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
+                    backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "shelved").GetAwaiter().GetResult();
+                    backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                     SavePluginSettings(Settings.Settings);
                 }
             };
@@ -516,12 +460,8 @@ namespace BackloggdStatus
                 Description = "Abandoned",
                 Action = (arg1) =>
                 {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "abandoned").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
+                    backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "abandoned").GetAwaiter().GetResult();
+                    backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                     SavePluginSettings(Settings.Settings);
                 }
             };
@@ -533,12 +473,8 @@ namespace BackloggdStatus
                 Description = "Playing",
                 Action = (arg1) =>
                 {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "Playing").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
+                    backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "Playing").GetAwaiter().GetResult();
+                    backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                     SavePluginSettings(Settings.Settings);
                 }
             };
@@ -550,12 +486,8 @@ namespace BackloggdStatus
                 Description = "Backlog",
                 Action = (arg1) =>
                 {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "Backlog").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
+                    backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "Backlog").GetAwaiter().GetResult();
+                    backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                     SavePluginSettings(Settings.Settings);
                 }
             };
@@ -567,12 +499,8 @@ namespace BackloggdStatus
                 Description = "Wishlist",
                 Action = (arg1) =>
                 {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "Wishlist").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
+                    backloggdAPI.ToggleStatusAsync(backloggdGame.BackloggdUrl, "Wishlist").GetAwaiter().GetResult();
+                    backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                     SavePluginSettings(Settings.Settings);
                 }
             };
@@ -590,12 +518,8 @@ namespace BackloggdStatus
                 Description = "Open Backloggd Page",
                 Action = (arg1) =>
                 {
-                    using (var view = PlayniteApi.WebViews.CreateView(width, height))
-                    {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        backloggdClient.OpenWebView(metadataLink.Url);
-                        game.RefreshStatus(view);
-                    }
+                    backloggdAPI.OpenWebView(backloggdGame.BackloggdUrl);
+                    backloggdGame = backloggdAPI.RefreshStatus(backloggdGame);
                     SavePluginSettings(Settings.Settings);
                 }
             };
@@ -606,23 +530,31 @@ namespace BackloggdStatus
                 Description = "Change Backloggd Game",
                 Action = (arg1) =>
                 {
-                    string newUrl;
-                    using (var view  = PlayniteApi.WebViews.CreateView(width, height))
+                    Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == playniteGame.Id);
+                    string url = backloggdAPI.SetBackloggdUrl(playniteGame.Name);
+                    if (url == null)
                     {
-                        BackloggdAPI backloggdClient = new BackloggdAPI(view);
-                        newUrl = backloggdClient.SetBackloggdUrl(args.Games[0].Name);
-
+                        PlayniteApi.Dialogs.ShowErrorMessage("Failed to set Backloggd URL. Please try again.", "Backloggd Error");
                     }
-                    if (newUrl.Contains($"{BackloggdAPI.baseUrl}/games"))
+                    else if (url.Contains($"{BackloggdAPI.baseUrl}/games"))
                     {
-                        metadataLink.Url = newUrl;
+                        //if (args.Games[0].Links == null)
+                        //{
+                        //    args.Games[0].Links = new ObservableCollection<Link>();
+                        //}
+                        //args.Games[0].Links.Add(new Link("Backloggd", url));
+
+                        backloggdGame = backloggdAPI.GetGameFromURL(url, playniteGame.Id);
+
+                        Settings.Settings.BackloggdGamesList.Add(backloggdGame);
+                        SavePluginSettings(Settings.Settings);
+
                     }
                     else
                     {
-                        args.Games[0].Links.Remove(metadataLink);
+                        PlayniteApi.Dialogs.ShowErrorMessage("Not valid Backloggd Url", "Backloggd Error");
+                        logger.Debug($"Not valid Backloggd Url: {url}");
                     }
-                    game.RefreshStatus();
-                    SavePluginSettings(Settings.Settings);
                 }
             };
 
@@ -639,17 +571,17 @@ namespace BackloggdStatus
         {
             // Add code to be executed when Playnite is initialized.
             logger.Info("Revalidating statuses for all games on application startup.");
-            foreach (var binder in Settings.Settings.BackloggdGamesList.ToList())
+            foreach (var backloggdGame in Settings.Settings.BackloggdGamesList.ToList())
             {
-                var game = PlayniteApi.Database.Games.FirstOrDefault(g => g.Id == binder.GameId);
+                var game = PlayniteApi.Database.Games.FirstOrDefault(g => g.Id == backloggdGame.GameId);
                 if (game == null)
                 {
-                    Settings.Settings.BackloggdGamesList.Remove(binder);
-                    logger.Info($"Removed missing game with ID {binder.GameId} from BackloggdGamesList.");
+                    Settings.Settings.BackloggdGamesList.Remove(backloggdGame);
+                    logger.Info($"Removed missing game with ID {backloggdGame.GameId} from BackloggdGamesList.");
                 }
                 else
                 {
-                    binder.RefreshStatus();
+                    backloggdAPI.RefreshStatus(backloggdGame);
                 }
             }
 
