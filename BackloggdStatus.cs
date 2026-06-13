@@ -1,21 +1,13 @@
-﻿using Playnite.SDK;
+using Playnite.SDK;
 using Playnite.SDK.Events;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
-using Playnite.SDK.Data;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics.Eventing.Reader;
 using System.Linq;
-using System.Runtime;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading.Tasks;   
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Controls;
-using System.Collections.Specialized;
-using System.Collections.ObjectModel;
-
 
 namespace BackloggdStatus
 {
@@ -23,138 +15,107 @@ namespace BackloggdStatus
     {
         private static readonly ILogger logger = LogManager.GetLogger();
 
-        private BackloggdStatusSettingsViewModel settings { get; set; }
+        public BackloggdStatusSettingsViewModel Settings { get; set; }
         public override Guid Id { get; } = Guid.Parse("228e1135-a326-4a8d-8ee9-edc1c61c0982");
-
-        private bool debug = false;
-
-        private const int width = 880;
-        private const int height = 530;
-
-        public const string DefaultURL = "URL not Set";
+        public BackloggdAPI backloggdAPI;
 
         internal static bool loggedIn;
 
         public BackloggdStatus(IPlayniteAPI api) : base(api)
         {
-           logger.Debug("BackloggdStatus Constructor Called");
+            logger.Debug("BackloggdStatus constructor called.");
 
             PlayniteApiProvider.Api = api;
 
-            settings = new BackloggdStatusSettingsViewModel(this, api);
-            Properties = new GenericPluginProperties
+            Settings = new BackloggdStatusSettingsViewModel(this, api);
+            Properties = new GenericPluginProperties { HasSettings = true };
+
+            var backgroundView = api.WebViews.CreateOffscreenView();
+            backloggdAPI = new BackloggdAPI(backgroundView);
+            backloggdAPI.OnUsernameResolved = name => Settings.UpdateUsername(name);
+
+            backloggdAPI.IsUserLoggedIn();
+
+            logger.Info("BackloggdStatus initialized.");
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // Lifecycle
+        // ────────────────────────────────────────────────────────────────────
+
+        public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
+        {
+            if (Settings.Settings.SyncOnStartup)
+                Task.Run(() => SyncAll());
+        }
+
+        public override void OnGameUninstalled(OnGameUninstalledEventArgs args)
+        {
+            Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == args.Game.Id);
+            SavePluginSettings(Settings.Settings);
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // Settings
+        // ────────────────────────────────────────────────────────────────────
+
+        public override ISettings GetSettings(bool firstRunSettings) => Settings;
+
+        public override UserControl GetSettingsView(bool firstRunSettings)
+        {
+            Settings.OnSignInRequested = () =>
             {
-                HasSettings = true
+                using (var v = PlayniteApi.WebViews.CreateView(500, 500))
+                    backloggdAPI.Login(v);
+                backloggdAPI.IsUserLoggedIn();
             };
 
-            using (var view = PlayniteApi.WebViews.CreateOffscreenView())
+            Settings.OnSignOutRequested = () =>
             {
-                BackloggdClient backloggdClient = new BackloggdClient(view);
-                backloggdClient.IsUserLoggedIn();
-            }
-
-            InitializeLibrarySync();
-
-            logger.Info("BackloggdStatus Initialized");
-
-        }
-
-        private void InitializeLibrarySync()
-        {
-            SynchronizeSettingsWithLibrary();
-
-            // Update settings when the library changes
-            PlayniteApi.Database.Games.ItemCollectionChanged += (_, args) =>
-            {
-                if (args.AddedItems.Any())
-                {
-                    foreach (var game in args.AddedItems)
-                    {
-                        if (settings.Settings.BackloggdURLs.FirstOrDefault(x => x.GameId == game.Id) == null)
-                        {
-                            settings.Settings.BackloggdURLs.Add(new BackloggdGame
-                            {
-                                GameId = game.Id
-                            });
-                            logger.Info($"Added new game {game.Name} to BackloggdURLs.");
-                        }
-                    }
-                }
-
-                if (args.RemovedItems.Any())
-                {
-                    foreach (var game in args.RemovedItems)
-                    {
-                        settings.Settings.BackloggdURLs.RemoveAll(x => x.GameId == game.Id);
-                        logger.Info($"Removed game {game.Name} from BackloggdURLs.");
-                    }
-                }
-
-                SavePluginSettings(settings.Settings);
+                backloggdAPI.Logout();
+                Settings.UpdateUsername("Not signed in");
             };
-        }
 
-        private void SynchronizeSettingsWithLibrary()
-        {
-            logger.Trace("Backloggd: Synchronizing settings with library.");
-
-            var currentGameIds = settings.Settings.BackloggdURLs.Select(binder => binder.GameId).ToHashSet();
-            var libraryGames = PlayniteApi.Database.Games;
-
-            // Add missing games to the settings
-            foreach (var game in libraryGames)
+            Settings.OnUnlinkRequested = id =>
             {
-                if (!currentGameIds.Contains(game.Id))
-                {
-                    settings.Settings.BackloggdURLs.Add(new BackloggdGame
-                    {
-                        GameId = game.Id
-                    });
-                    logger.Info($"Synchronized game {game.Name} into BackloggdURLs.");
-                }
-            }
+                Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == id);
+                SavePluginSettings(Settings.Settings);
+                Settings.RefreshMappedGames(PlayniteApi);
+            };
 
-            // Remove games from the settings that are no longer in the library
-            settings.Settings.BackloggdURLs.RemoveAll(binder => !libraryGames.Any(game => game.Id == binder.GameId));
+            Settings.OnSyncAllRequested = () => SyncAll();
 
-            SavePluginSettings(settings.Settings);
+            Settings.OnOpenLogRequested = () =>
+            {
+                try { System.Diagnostics.Process.Start(GetPluginUserDataPath()); }
+                catch (Exception ex) { logger.Error($"Could not open log folder: {ex.Message}"); }
+            };
+
+            Settings.LogFilePath = GetPluginUserDataPath();
+            Settings.RefreshMappedGames(PlayniteApi);
+
+            var view = new BackloggdStatusSettingsView();
+            view.DataContext = Settings;
+            return view;
         }
 
+        // ────────────────────────────────────────────────────────────────────
+        // Main menu
+        // ────────────────────────────────────────────────────────────────────
 
-        // To add new main menu items override GetMainMenuItems
         public override IEnumerable<MainMenuItem> GetMainMenuItems(GetMainMenuItemsArgs args)
         {
-           logger.Debug("BakloggdStatus: GetMainMenuItems Called");
-
-            yield return new MainMenuItem
-            {
-                // Added into "Extensions" menu
-                MenuSection = "@BackloggdStatus",
-                Description = "Clear Extension Data",
-                Action = (arg1) =>
-                {
-                    logger.Info("Clearing BackloggdStatus settings data.");
-                    settings.Settings.BackloggdURLs.Clear();
-                    SavePluginSettings(settings.Settings);
-                    SynchronizeSettingsWithLibrary();
-                }
-            };
-
             if (!loggedIn)
             {
                 yield return new MainMenuItem
                 {
-                    // Added into "Extensions -> BackloggdStatus" menu
                     MenuSection = "@BackloggdStatus",
                     Description = "Sign In",
-                    Action = (arg1) => 
+                    Action = _ =>
                     {
-                        using (var view = PlayniteApi.WebViews.CreateView(width, height))
-                        {
-                            BackloggdClient backloggdClient = new BackloggdClient(view);
-                            backloggdClient.Login();
-                            backloggdClient.IsUserLoggedIn();
-                        }
+                        using (var v = PlayniteApi.WebViews.CreateView(500, 500))
+                            backloggdAPI.Login(v);
+                        backloggdAPI.IsUserLoggedIn();
                     }
                 };
             }
@@ -162,547 +123,254 @@ namespace BackloggdStatus
             {
                 yield return new MainMenuItem
                 {
-                    // Added into "Extensions -> BackloggdStatus" menu
                     MenuSection = "@BackloggdStatus",
                     Description = "Sign Out",
-                    Action = (arg1) => 
-                    { 
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                        {
-                            BackloggdClient backloggdClient = new BackloggdClient(view);
-                            backloggdClient.Logout();
-                            backloggdClient.IsUserLoggedIn();
-                        }
+                    Action = _ =>
+                    {
+                        backloggdAPI.Logout();
+                        Settings.UpdateUsername("Not signed in");
                     }
+                };
+
+                yield return new MainMenuItem
+                {
+                    MenuSection = "@BackloggdStatus",
+                    Description = "Sync All",
+                    Action = _ => Task.Run(() => SyncAll()).GetAwaiter().GetResult()
                 };
             }
 
             yield return new MainMenuItem
             {
-                // Added into "Extensions" menu
                 MenuSection = "@BackloggdStatus",
-                Description = "Toggle Debug Mode",
-                Action = (arg1) =>
+                Description = "Clear Extension Data",
+                Action = _ =>
                 {
-                    debug = !debug;
-                    logger.Info($"Set BackloggdStatus.debug to: {debug}");
-                }
-            };
-
-            if (!debug)
-            {
-                yield break;
-            }
-
-            yield return new MainMenuItem
-            {
-                MenuSection = "@BackloggdStatus",
-                Description = "-"
-            };
-
-            yield return new MainMenuItem
-            {
-                MenuSection = "@BackloggdStatus",
-                Description = "DEBUG OPTIONS"
-            };
-
-            yield return new MainMenuItem
-            {
-                // Added into "Extensions -> BackloggdStatus" menu
-                MenuSection = "@BackloggdStatus",
-                Description = "Sign In",
-                Action = (arg1) => 
-                {
-                    using (var view = PlayniteApi.WebViews.CreateView(width, height))
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.Login();
-                        backloggdClient.IsUserLoggedIn();
-                    }
-                }
-            };
-
-            yield return new MainMenuItem
-            {
-                // Added into "Extensions -> BackloggdStatus" menu
-                MenuSection = "@BackloggdStatus",
-                Description = "Open WebView",
-                Action = (args1) => 
-                { 
-                    using (var view = PlayniteApi.WebViews.CreateView(width, height)) 
-                    { 
-                        BackloggdClient backloggdClient = new BackloggdClient(view); 
-                        backloggdClient.OpenWebView(); 
-                    } 
-                }
-            };
-
-            yield return new MainMenuItem
-            {
-                // Added into "Extensions -> BackloggdStatus" menu
-                MenuSection = "@BackloggdStatus",
-                Description = "Sign Out",
-                Action = (arg1) =>
-                {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.Logout();
-                        backloggdClient.IsUserLoggedIn();
-                    }
+                    Settings.Settings.BackloggdGamesList.Clear();
+                    SavePluginSettings(Settings.Settings);
                 }
             };
         }
+
+        // ────────────────────────────────────────────────────────────────────
+        // Game context menu
+        // ────────────────────────────────────────────────────────────────────
 
         public override IEnumerable<GameMenuItem> GetGameMenuItems(GetGameMenuItemsArgs args)
         {
-            logger.Debug("GetGameMenuItems Called");
-
-            Link metadataLink;
-
-            if (args.Games[0].Links == null)
-            {
-                metadataLink = null;
-            }
-            else
-            {
-                metadataLink = args.Games[0].Links.Select(link => link).FirstOrDefault(link => link.Name == "Backloggd");
-            }
-
-            BackloggdGame game = settings.Settings.BackloggdURLs.FirstOrDefault(x => x.GameId == args.Games[0].Id);
-            if (game == null)
-            {
-                // Handle the case where no matching element is found
-                logger.Error("No matching BackloggdGame found for the game.");
-                settings.Settings.BackloggdURLs.RemoveAll(x => x.GameId == game.GameId);
-                SavePluginSettings(settings.Settings);
-
-                yield break;
-            }
-
+            var playniteGame = args.Games.First();
+            var bg = Settings.Settings.BackloggdGamesList
+                .FirstOrDefault(x => x.GameId == playniteGame.Id);
 
             if (!loggedIn)
             {
                 yield return new GameMenuItem
                 {
-                    // Added into game context menu
                     MenuSection = "BackloggdStatus",
                     Description = "Sign In",
-                    Action = (arg1) =>
+                    Action = _ =>
                     {
-                        using (var view = PlayniteApi.WebViews.CreateView(width, height))
-                        {
-                            BackloggdClient backloggdClient = new BackloggdClient(view);
-                            backloggdClient.Login();
-                            backloggdClient.IsUserLoggedIn();
-                        }
+                        using (var v = PlayniteApi.WebViews.CreateView(500, 500))
+                            backloggdAPI.Login(v);
+                        backloggdAPI.IsUserLoggedIn();
                     }
                 };
-
                 yield break;
             }
 
-            if (metadataLink == null)
+            if (bg == null || string.IsNullOrEmpty(bg.BackloggdUrl))
             {
                 yield return new GameMenuItem
                 {
                     MenuSection = "BackloggdStatus",
-                    Description = DefaultURL,
-                    Action = (arg1) =>
-                    {
-                        string url;
-                        using (var view = PlayniteApi.WebViews.CreateView(width, height))
-                        {
-                            BackloggdClient backloggdClient = new BackloggdClient(view);
-                            url = backloggdClient.SetBackloggdUrl(args.Games[0].Name);
-
-                        }
-                        if (url.Contains($"{BackloggdClient.baseUrl}/games"))
-                        {
-                            if (args.Games[0].Links == null)
-                            {
-                                args.Games[0].Links = new ObservableCollection<Link>();
-                            }
-                            args.Games[0].Links.Add(new Link("Backloggd", url));
-
-                        }
-                        game.RefreshStatus();
-                        SavePluginSettings(settings.Settings);
-                    }
+                    Description = "Link to Backloggd…",
+                    Action = _ => LinkGame(playniteGame)
                 };
-
                 yield break;
             }
 
+            // ── Linked game menu ─────────────────────────────────────────
             yield return new GameMenuItem
             {
                 MenuSection = "BackloggdStatus",
                 Description = "Refresh Status",
-                Action = (arg1) =>
-                {
-                    game.RefreshStatus();
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-
-            yield return new GameMenuItem
-            {
-                MenuSection = "BackloggdStatus",
-                Description = game.BackloggdName
+                Action = _ => ReplaceGame(bg, Task.Run(() => backloggdAPI.RefreshStatus(bg)).GetAwaiter().GetResult())
             };
 
             yield return new GameMenuItem
             {
                 MenuSection = "BackloggdStatus",
-                Description = "-"
+                Description = bg.BackloggdName   // label — no action
             };
 
-            if (game.Played != null)
+            yield return new GameMenuItem { MenuSection = "BackloggdStatus", Description = "-" };
+
+            yield return StatusToggle(bg, "Playing", bg.Playing);
+            yield return StatusToggle(bg, "Backlog",  bg.Backlog);
+            yield return StatusToggle(bg, "Wishlist", bg.Wishlist);
+
+            yield return new GameMenuItem { MenuSection = "BackloggdStatus", Description = "-" };
+
+            // ── Played-status submenu ────────────────────────────────────
+            if (bg.Played.HasValue)
             {
                 yield return new GameMenuItem
                 {
-                    MenuSection = "BackloggdStatus",
-                    Description = game.Played.ToString(),
-                    Action = (arg1) =>
+                    MenuSection = "BackloggdStatus | Played Status",
+                    Description = "Remove Played Status",
+                    Action = _ =>
                     {
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
+                        var updated = Task.Run(async () =>
                         {
-                            BackloggdClient backloggdClient = new BackloggdClient(view);
-                            backloggdClient.ToggleStatusAsync(metadataLink.Url, "unset-played-btn").GetAwaiter().GetResult();
-                            game.RefreshStatus(view);
-                        }
-                        SavePluginSettings(settings.Settings);
+                            // Opens the played-type modal, then clicks #unset-played-btn ("Mark as unplayed")
+                            await backloggdAPI.ToggleStatusAsync(bg.BackloggdUrl, "unset-played-btn");
+                            return backloggdAPI.RefreshStatus(bg);
+                        }).GetAwaiter().GetResult();
+                        ReplaceGame(bg, updated);
                     }
                 };
             }
 
-            if (game.Playing)
+            foreach (PlayedStatus ps in Enum.GetValues(typeof(PlayedStatus)))
             {
+                bool isActive = bg.Played == ps;
+                string psName = ps.ToString();
                 yield return new GameMenuItem
                 {
-                    MenuSection = "BackloggdStatus",
-                    Description = "Playing",
-                    Action = (arg1) =>
+                    MenuSection = "BackloggdStatus | Played Status",
+                    Description = Check(isActive) + psName,
+                    Action = _ =>
                     {
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
+                        var updated = Task.Run(async () =>
                         {
-                            BackloggdClient backloggdClient = new BackloggdClient(view);
-                            backloggdClient.ToggleStatusAsync(metadataLink.Url, "Playing").GetAwaiter().GetResult();
-                            game.RefreshStatus(view);
-                        }
-                        SavePluginSettings(settings.Settings);
+                            await backloggdAPI.ToggleStatusAsync(bg.BackloggdUrl, psName.ToLower());
+                            return backloggdAPI.RefreshStatus(bg);
+                        }).GetAwaiter().GetResult();
+                        ReplaceGame(bg, updated);
                     }
                 };
             }
 
-            if (game.Backlog)
+            yield return new GameMenuItem { MenuSection = "BackloggdStatus", Description = "-" };
+
+            yield return new GameMenuItem
             {
-                yield return new GameMenuItem
+                MenuSection = "BackloggdStatus",
+                Description = "Open on Backloggd",
+                Action = _ =>
                 {
-                    MenuSection = "BackloggdStatus",
-                    Description = "Backlog",
-                    Action = (arg1) =>
+                    try { System.Diagnostics.Process.Start(bg.BackloggdUrl); }
+                    catch (Exception ex) { logger.Error($"Could not open URL: {ex.Message}"); }
+                }
+            };
+
+            yield return new GameMenuItem
+            {
+                MenuSection = "BackloggdStatus",
+                Description = "Link to Backloggd…",
+                Action = _ => LinkGame(playniteGame)
+            };
+
+            yield return new GameMenuItem
+            {
+                MenuSection = "BackloggdStatus",
+                Description = "Unlink from Backloggd",
+                Action = _ =>
+                {
+                    Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == playniteGame.Id);
+                    SavePluginSettings(Settings.Settings);
+                }
+            };
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // Helpers
+        // ────────────────────────────────────────────────────────────────────
+
+        private GameMenuItem StatusToggle(BackloggdGame bg, string statusName, bool isActive)
+        {
+            return new GameMenuItem
+            {
+                MenuSection = "BackloggdStatus",
+                Description = Check(isActive) + statusName,
+                Action = _ =>
+                {
+                    var updated = Task.Run(async () =>
                     {
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                        {
-                            BackloggdClient backloggdClient = new BackloggdClient(view);
-                            backloggdClient.ToggleStatusAsync(metadataLink.Url, "Backlog").GetAwaiter().GetResult();
-                            game.RefreshStatus(view);
-                        }
-                        SavePluginSettings(settings.Settings);
-                    }
-                };
+                        await backloggdAPI.ToggleStatusAsync(bg.BackloggdUrl, statusName);
+                        return backloggdAPI.RefreshStatus(bg);
+                    }).GetAwaiter().GetResult();
+                    ReplaceGame(bg, updated);
+                }
+            };
+        }
+
+        private void ReplaceGame(BackloggdGame old, BackloggdGame updated)
+        {
+            if (updated == null) return;
+            updated.LastSynced = DateTime.Now;
+
+            int idx = Settings.Settings.BackloggdGamesList.IndexOf(old);
+            if (idx >= 0)
+                Settings.Settings.BackloggdGamesList[idx] = updated;
+            else
+                Settings.Settings.BackloggdGamesList.Add(updated);
+
+            SavePluginSettings(Settings.Settings);
+        }
+
+        private void SyncAll()
+        {
+            logger.Info("SyncAll started.");
+            foreach (var bg in Settings.Settings.BackloggdGamesList.ToList())
+            {
+                if (PlayniteApi.Database.Games.FirstOrDefault(g => g.Id == bg.GameId) == null)
+                {
+                    Settings.Settings.BackloggdGamesList.Remove(bg);
+                    logger.Info($"Removed stale entry for game ID {bg.GameId}.");
+                    continue;
+                }
+                ReplaceGame(bg, backloggdAPI.RefreshStatus(bg));
+            }
+            SavePluginSettings(Settings.Settings);
+            logger.Info("SyncAll complete.");
+        }
+
+        private void LinkGame(Game playniteGame)
+        {
+            var results = Task.Run(() => backloggdAPI.SearchGames(playniteGame.Name))
+                             .GetAwaiter().GetResult();
+
+            if (results.Count == 0)
+            {
+                PlayniteApi.Dialogs.ShowMessage(
+                    $"No Backloggd results found for \"{playniteGame.Name}\".",
+                    "BackloggdStatus");
+                return;
             }
 
-            if (game.Wishlist)
+            var dialog = new Views.GameSearchDialog(playniteGame.Name, results)
             {
-                yield return new GameMenuItem
-                {
-                    MenuSection = "BackloggdStatus",
-                    Description = "Wishlist",
-                    Action = (arg1) =>
-                    {
-                        using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                        {
-                            BackloggdClient backloggdClient = new BackloggdClient(view);
-                            backloggdClient.ToggleStatusAsync(metadataLink.Url, "Wishlist").GetAwaiter().GetResult();
-                            game.RefreshStatus(view);
-                        }
-                        SavePluginSettings(settings.Settings);
-                    }
-                };
-            }
-
-            yield return new GameMenuItem
-            {
-                // Added into game context menu
-                MenuSection = "BackloggdStatus",
-                Description = "-"
+                Owner = Application.Current.MainWindow
             };
 
-            yield return new GameMenuItem
+            if (dialog.ShowDialog() == true && dialog.Result != null)
             {
-                // Added into game context menu
-                MenuSection = "BackloggdStatus | Toggle Status | Played",
-                Description = "Played",
-                Action = (arg1) =>
+                var linked = Task.Run(() =>
+                    backloggdAPI.GetGameFromURL(dialog.Result.Url, playniteGame.Id))
+                    .GetAwaiter().GetResult();
+
+                if (linked != null)
                 {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "played").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-            yield return new GameMenuItem
-            {
-                // Added into game context menu
-                MenuSection = "BackloggdStatus | Toggle Status | Played",
-                Description = "Completed",
-                Action = (arg1) =>
-                {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "completed").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-            yield return new GameMenuItem
-            {
-                // Added into game context menu
-                MenuSection = "BackloggdStatus | Toggle Status | Played",
-                Description = "Retired",
-                Action = (arg1) =>
-                {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "retired").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-            yield return new GameMenuItem
-            {
-                // Added into game context menu
-                MenuSection = "BackloggdStatus | Toggle Status | Played",
-                Description = "Shelved",
-                Action = (arg1) =>
-                {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "shelved").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-            yield return new GameMenuItem
-            {
-                // Added into game context menu
-                MenuSection = "BackloggdStatus | Toggle Status | Played",
-                Description = "Abandoned",
-                Action = (arg1) =>
-                {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "abandoned").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-            yield return new GameMenuItem
-            {
-                // Added into game context menu
-                MenuSection = "BackloggdStatus | Toggle Status",
-                Description = "Playing",
-                Action = (arg1) =>
-                {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "Playing").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-            yield return new GameMenuItem
-            {
-                // Added into game context menu
-                MenuSection = "BackloggdStatus | Toggle Status",
-                Description = "Backlog",
-                Action = (arg1) =>
-                {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "Backlog").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-            yield return new GameMenuItem
-            {
-                // Added into game context menu
-                MenuSection = "BackloggdStatus | Toggle Status",
-                Description = "Wishlist",
-                Action = (arg1) =>
-                {
-                    using (var view = PlayniteApi.WebViews.CreateOffscreenView())
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.ToggleStatusAsync(metadataLink.Url, "Wishlist").GetAwaiter().GetResult();
-                        game.RefreshStatus(view);
-                    }
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-            yield return new GameMenuItem
-            {
-                // Added into game context menu
-                MenuSection = "BackloggdStatus",
-                Description = "-"
-            };
-
-            yield return new GameMenuItem
-            {
-                MenuSection = "BackloggdStatus",
-                Description = "Open Backloggd Page",
-                Action = (arg1) =>
-                {
-                    using (var view = PlayniteApi.WebViews.CreateView(width, height))
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        backloggdClient.OpenWebView(metadataLink.Url);
-                        game.RefreshStatus(view);
-                    }
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-            yield return new GameMenuItem
-            {
-                MenuSection = "BackloggdStatus",
-                Description = "Change Backloggd Game",
-                Action = (arg1) =>
-                {
-                    string newUrl;
-                    using (var view  = PlayniteApi.WebViews.CreateView(width, height))
-                    {
-                        BackloggdClient backloggdClient = new BackloggdClient(view);
-                        newUrl = backloggdClient.SetBackloggdUrl(args.Games[0].Name);
-
-                    }
-                    if (newUrl.Contains($"{BackloggdClient.baseUrl}/games"))
-                    {
-                        metadataLink.Url = newUrl;
-                    }
-                    else
-                    {
-                        args.Games[0].Links.Remove(metadataLink);
-                    }
-                    game.RefreshStatus();
-                    SavePluginSettings(settings.Settings);
-                }
-            };
-
-        }
-
-
-        public override void OnGameInstalled(OnGameInstalledEventArgs args)
-        {
-            // Add code to be executed when game is finished installing.
-
-        }
-
-        public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
-        {
-            // Add code to be executed when Playnite is initialized.
-            logger.Info("Revalidating statuses for all games on application startup.");
-            foreach (var binder in settings.Settings.BackloggdURLs.ToList())
-            {
-                var game = PlayniteApi.Database.Games.FirstOrDefault(g => g.Id == binder.GameId);
-                if (game == null)
-                {
-                    settings.Settings.BackloggdURLs.Remove(binder);
-                    logger.Info($"Removed missing game with ID {binder.GameId} from BackloggdURLs.");
-                }
-                else
-                {
-                    binder.RefreshStatus();
+                    linked.LastSynced = DateTime.Now;
+                    Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == playniteGame.Id);
+                    Settings.Settings.BackloggdGamesList.Add(linked);
+                    SavePluginSettings(Settings.Settings);
                 }
             }
-
-            SavePluginSettings(settings.Settings);
         }
 
-        public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
-        {
-            // Add code to be executed when library is updated.
-            SynchronizeSettingsWithLibrary();
-        }
-
-
-
-        // public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
-        // {
-        //     // Add code to be executed when Playnite is shutting down.
-        // }
-        //
-        // public override void OnGameStarted(OnGameStartedEventArgs args)
-        // {
-        //     // Add code to be executed when game is started running.
-        // }
-        //
-        // public override void OnGameStarting(OnGameStartingEventArgs args)
-        // {
-        //     // Add code to be executed when game is preparing to be started.
-        // }
-        //
-        // public override void OnGameStopped(OnGameStoppedEventArgs args)
-        // {
-        //     // Add code to be executed when game is preparing to be started.
-        // }
-
-        public override void OnGameUninstalled(OnGameUninstalledEventArgs args)
-        {
-            // Add code to be executed when game is uninstalled.
-            logger.Info($"Game uninstalled: {args.Game.Name}. Removing from BackloggdURLs.");
-            settings.Settings.BackloggdURLs.RemoveAll(x => x.GameId == args.Game.Id);
-            SavePluginSettings(settings.Settings);
-        }
-
-        public override ISettings GetSettings(bool firstRunSettings)
-        {
-            return settings;
-        }
-
-        public override UserControl GetSettingsView(bool firstRunSettings)
-        {
-            var view = new BackloggdStatusSettingsView();
-            return view;
-        }
-
+        private static string Check(bool active) => active ? "✓ " : "  ";
     }
 
     public static class PlayniteApiProvider
