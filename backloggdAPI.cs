@@ -1,421 +1,386 @@
-﻿using AngleSharp;
-using AngleSharp.Extensions;
 using AngleSharp.Parser.Html;
 using Playnite.SDK;
-using Playnite.SDK.Data;
 using Playnite.SDK.Events;
 using Playnite.SDK.Models;
-using Playnite.SDK.Plugins;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Eventing.Reader;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Security.Policy;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Controls;
-using System.Windows.Navigation;
-using static BackloggdStatus.BackloggdGame;
 
 namespace BackloggdStatus
 {
     public class BackloggdAPI
     {
-        private readonly IPlayniteAPI PlayniteApi = PlayniteApiProvider.Api;
         private static readonly ILogger logger = LogManager.GetLogger();
-        private IWebView webView;
+        private readonly IWebView webView;
 
-        public const string baseUrl = @"https://backloggd.com";
-        private const bool verbose = true;
+        public const string BaseUrl = "https://backloggd.com";
 
-        private readonly Dictionary<string, string> statusMapper = new Dictionary<string, string>
-        {
-            { "wishlist-btn-container", "wishlist" },
-            { "backlog-btn-container", "backlog" },
-            { "playing-btn-container", "playing" },
-            { "play-btn-container", "played" }
-        };
+        // ── CSS selector constants — update here if Backloggd changes HTML ──
+        //
+        // ── Page: https://backloggd.com  (used by IsUserLoggedIn) ───────────
+        // <nav id="mobile-user-nav"> — present only when logged in; used as the login check
+        private const string SelUserNav     = "#mobile-user-nav";
 
-        private readonly Dictionary<string, string> buttonMapper = new Dictionary<string, string>
+        // The nav-link anchor itself — id="navbarDropdown" IS the <a>, not a parent
+        // private const string SelUserNavLink = "#mobile-user-nav a";
+        private const string SelUserNavLink = "#navbarDropdown";
+
+
+        // ── Page: https://backloggd.com/games/<slug>  (used by GetGameFromURL / ToggleStatusAsync) ──
+        // <h1> inside the game title section (both mobile and desktop share .game-title-section)
+        private const string SelGameTitle = ".game-title-section h1";
+        
+        // Elements with class "btn-play-fill" — status buttons that are visually active.
+        // Each element's className (or play_type attribute on the first one) identifies the
+        // active status: playing-btn-container, backlog-btn-container, wishlist-btn-container,
+        // played, completed, retired, shelved, abandoned.
+        private const string SelStatusFill  = ".btn-play-fill";
+        
+        // CSS selector for querySelectorAll() — all four clickable status buttons in #buttons.
+        // Index 0 = Play/Played, 1 = Playing, 2 = Backlog, 3 = Wishlist.
+        // The first button carries a play_type attribute ("played", "completed", etc.)
+        // when a finished status is active. Uses stable layout classes only (no active-state class).
+        private const string SelPlayButton  = "#buttons > div.col.px-0.mt-auto > button";
+
+
+        // ── Page: https://backloggd.com/search/games/<query>  (used by SearchGames) ──
+        // Wrapper element for each search result card — selects ALL results.
+        private const string SelSearchCard  = "#search-results > div > div";
+        
+        // Relative selectors — queried against each individual card element in the SearchGames loop.
+        // <a> whose href is the game's slug path (e.g. /games/half-life)
+        private const string SelSearchLink  = "div.col.my-auto > div > div.col.my-auto > div:nth-child(1) > div > a";
+        
+        // <img> — the cover art thumbnail; src is the image URL
+        private const string SelSearchImage = "div.col-2.col-lg-1.my-auto.pr-0 > a > div > div > img";
+        
+        // <h3> containing the game title text
+        private const string SelSearchTitle = "div.col.my-auto > div > div.col.my-auto > div:nth-child(1) > div > a > h3";
+        
+        // <span> inside the title <h3> containing the release year
+        private const string SelSearchYear  = "div.col.my-auto > div > div.col.my-auto > div:nth-child(1) > div > a > h3 > span";
+
+        // ── Button index map for quick-toggle statuses ───────────────────────
+        private readonly Dictionary<string, string> buttonIndexMap = new Dictionary<string, string>
         {
             { "Wishlist", "3" },
-            { "Backlog", "2" },
-            { "Playing", "1" },
-            { "Played", "0" },
-            { "Completed", "0" },
-            { "Retired", "0" },
-            { "Shelved", "0" },
-            { "Abandoned", "0" },
-            { "Unplayed", "0" }
+            { "Backlog",  "2" },
+            { "Playing",  "1" }
         };
 
-        public BackloggdAPI()
+        // ── Callback wired by the plugin to display username in settings ─────
+        public Action<string> OnUsernameResolved { get; set; }
+
+        public BackloggdAPI(IWebView webView)
         {
-            webView = PlayniteApi.WebViews.CreateOffscreenView();
+            this.webView = webView;
         }
 
-        /// <summary>
-        /// Opens the Backloggd.com login page and stores login cookies.
-        /// </summary>
-        public void Login()
+        // ────────────────────────────────────────────────────────────────────
+        // Auth
+        // ────────────────────────────────────────────────────────────────────
+
+        public void Login(IWebView view)
         {
-            logger.Trace("Login method called");
+            string loginUrl = $"{BaseUrl}/users/sign_in";
 
-            string loginUrl = $@"{baseUrl}/users/sign_in";
-
-            Logout();
-            webView.Navigate(loginUrl);
-            logger.Info("Navigating to Backloggd Login");
-            webView.OpenDialog();
-
-
-            webView.LoadingChanged += async (s, e) =>
+            EventHandler<WebViewLoadingChangedEventArgs> handler = null;
+            handler = async (s, e) =>
             {
-                var url = webView.GetCurrentAddress();
-                if (!url.EndsWith("sign_in"))
+                var url = view.GetCurrentAddress();
+                if (!string.IsNullOrEmpty(url) && !url.EndsWith("sign_in"))
                 {
-                    var loggedIn = await Task.Run(() => IsUserLoggedIn());
-                    if (loggedIn)
+                    bool ok = await Task.Run(() => IsUserLoggedIn()).ConfigureAwait(false);
+                    if (ok)
                     {
-                        webView.Close();
+                        view.LoadingChanged -= handler;
+                        view.Close();
                     }
                 }
             };
 
-            Logout();
-            webView.Navigate(loginUrl);
-            webView.OpenDialog();
+            view.LoadingChanged += handler;
+            DeleteCookies(view);
+            view.Navigate(loginUrl);
+            view.OpenDialog();
+            view.LoadingChanged -= handler; // safety unsubscribe if closed manually
         }
 
-        /// <summary>
-        /// Checks if user is logged in to Backloggd.com
-        /// </summary>
         public bool IsUserLoggedIn(bool navigate = true)
         {
-            if (verbose)
-            {
-                logger.Trace("Public IsUserLoggedIn method called");
-            }
-
-            logger.Debug("Public IsUserLoggedIn");
-
             if (navigate)
-            {
-                webView.NavigateAndWait(baseUrl);
-            }
+                webView.NavigateAndWait(BaseUrl);
 
-            // TODO: test this method
-            // Check if #mobile-user-nav') exists, return false if it does.
-            var parser = new HtmlParser();
+            var parser   = new HtmlParser();
             var document = parser.Parse(webView.GetPageSource());
-            var userNav = document.QuerySelector("#mobile-user-nav");
+            var userNav  = document.QuerySelector(SelUserNav);
 
             if (userNav == null)
             {
                 BackloggdStatus.loggedIn = false;
                 return false;
             }
-            else
-            {
-                BackloggdStatus.loggedIn = true;
-                return true;
-            }
 
+            BackloggdStatus.loggedIn = true;
+
+            var usernameEl = document.QuerySelector(SelUserNavLink);
+            string username = usernameEl?.TextContent.Trim();
+            if (!string.IsNullOrEmpty(username))
+                OnUsernameResolved?.Invoke(username);
+
+            return true;
         }
 
-        /// <summary>
-        /// Deletes all cookies from Backloggd.com
-        /// Logs out of Backloggd.com
-        /// </summary>
-        private void DeleteCookies()
-        {
-            if (verbose)
-            {
-                logger.Trace("DeleteCookies method called");
-            }
-
-            logger.Info("Deleting Cookies");
-            webView.DeleteDomainCookies(".backloggd.com");
-            webView.DeleteDomainCookies("www.backloggd.com");
-        }
-
-        /// <summary>
-        /// Logs out of Backloggd.com by deleting cookies.
-        /// </summary>
         public void Logout()
         {
-            DeleteCookies();
-            //IsUserLoggedIn();
+            DeleteCookies(webView);
+            BackloggdStatus.loggedIn = false;
         }
 
+        private void DeleteCookies(IWebView view)
+        {
+            view.DeleteDomainCookies(".backloggd.com");
+            view.DeleteDomainCookies("www.backloggd.com");
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // Game status read
+        // ────────────────────────────────────────────────────────────────────
 
         public BackloggdGame RefreshStatus(BackloggdGame game)
         {
-            if (verbose)
-            {
-                logger.Trace("RefreshStatus method called");
-            }
-
             if (game == null)
             {
-                logger.Error("Game is null in RefreshStatus method.");
+                logger.Error("RefreshStatus called with null game.");
                 return null;
             }
-
-            string backloggdURL = game.BackloggdUrl;
-            Guid gameID = game.GameId;
-
-            return GetGameFromURL(backloggdURL, gameID);
+            return GetGameFromURL(game.BackloggdUrl, game.GameId);
         }
 
-        public BackloggdGame GetGameFromURL(string backloggdURL, Guid gameID)
+        public BackloggdGame GetGameFromURL(string backloggdURL, Guid gameId)
         {
-            if (verbose)
-            {
-                logger.Trace("GetGameFromURL method called");
-            }
-
             if (string.IsNullOrEmpty(backloggdURL))
             {
-                logger.Error("Game URL is null or empty in GetGameFromURL method.");
+                logger.Error("GetGameFromURL: URL is null or empty.");
                 return null;
             }
 
-            logger.Debug($"Opening WebView to: {backloggdURL}");
+            logger.Debug($"GetGameFromURL: navigating to {backloggdURL}");
             webView.NavigateAndWait(backloggdURL);
 
-            string pagesource = webView.GetPageSource();
-            var parser = new HtmlParser();
-            var document = parser.Parse(pagesource);
+            // Wait for the button row to exist — .logging-btns is always present regardless of
+            // whether any status is active (.btn-play-fill only exists when a status IS set)
+            bool buttonsReady = WaitForElement(".logging-btns");
+            if (!buttonsReady)
+                logger.Warn("GetGameFromURL: status buttons not found after polling — page may have changed structure.");
 
+            var parser   = new HtmlParser();
+            var document = parser.Parse(webView.GetPageSource());
 
-            var gameNameElement = document.QuerySelector("#title > div.col-12.px-1 > div > div > h1");
-            if (gameNameElement == null)
+            // Resilient title selector — falls back through Google-Translate wrapper elements
+            var titleEl = document.QuerySelector(SelGameTitle)
+                       ?? document.QuerySelector(SelGameTitle + " font")
+                       ?? document.QuerySelector(SelGameTitle + " font font");
+            if (titleEl == null)
             {
-                logger.Error("Game name not found");
+                logger.Error("GetGameFromURL: game title element not found.");
                 return null;
             }
+            string gameName = titleEl.TextContent.Trim();
 
-            var playingBool = false;
-            var backlogBool = false;
-            var wishlistBool = false;
-            BackloggdGame.PlayedStatus? playedStatus = null;
+            // ── Parse status button states ────────────────────────────────
+            // SelStatusFill selects the container divs that have btn-play-fill (active state).
+            // Each container div has multiple classes; ClassList.Contains() checks individual tokens.
+            bool playingBool  = false;
+            bool backlogBool  = false;
+            bool wishlistBool = false;
+            PlayedStatus? playedStatus = null;
 
-
-            var statusElements = document.QuerySelectorAll("#buttons > .btn-play-fill");
-            var statusList = statusElements.Select(el => el.ClassName).ToList();
-            //statusList = statusList.Select(SetStatusString).ToList();
-
-            var playedStatusElement = document.GetElementsByClassName("button-link btn-play mx-auto")[0];
-            var playStatus = playedStatusElement.GetAttribute("play_type");
-
-            // Played Status is always first in the list.
-            if (playStatus != null)
+            foreach (var el in document.QuerySelectorAll(SelStatusFill))
             {
-                statusList[0] = playStatus;
-            }
-
-            foreach (var status in statusList)
-            {
-                switch(status)
+                var cls = el.ClassList;
+                if (cls.Contains("playing-btn-container"))
+                    playingBool = true;
+                else if (cls.Contains("backlog-btn-container"))
+                    backlogBool = true;
+                else if (cls.Contains("wishlist-btn-container"))
+                    wishlistBool = true;
+                else if (cls.Contains("played-btn-container"))
                 {
-                    case "wishlist-btn-container":
-                        wishlistBool = true;
-                        break;
-                    case "backlog-btn-container":
-                        backlogBool = true;
-                        break;
-                    case "playing-btn-container":
-                        playingBool = true;
-                        break;
-                    case "played":
-                        playedStatus = BackloggdGame.PlayedStatus.Played;
-                        break;
-                    case "completed":
-                        playedStatus = BackloggdGame.PlayedStatus.Completed;
-                        break;
-                    case "retired":
-                        playedStatus = BackloggdGame.PlayedStatus.Retired;
-                        break;
-                    case "shelved":
-                        playedStatus = BackloggdGame.PlayedStatus.Shelved;
-                        break;
-                    case "abandoned":
-                        playedStatus = BackloggdGame.PlayedStatus.Abandoned;
-                        break;
+                    // The play_type attribute on the child button identifies the finished sub-status
+                    var playType = el.QuerySelector("button")?.GetAttribute("play_type");
+                    switch (playType)
+                    {
+                        case "played":     playedStatus = PlayedStatus.Played;    break;
+                        case "completed":  playedStatus = PlayedStatus.Completed; break;
+                        case "retired":    playedStatus = PlayedStatus.Retired;   break;
+                        case "shelved":    playedStatus = PlayedStatus.Shelved;   break;
+                        case "abandoned":  playedStatus = PlayedStatus.Abandoned; break;
+                    }
                 }
             }
 
-
-            
-
-            BackloggdGame game = new BackloggdGame
+            return new BackloggdGame
             {
-                GameId = gameID,
-                BackloggdName = gameNameElement.TextContent.Trim(),
-                BackloggdUrl = backloggdURL,
-                Playing = playingBool,
-                Backlog = backlogBool,
-                Wishlist = wishlistBool,
-                Played = playedStatus
+                GameId        = gameId,
+                BackloggdName = gameName,
+                BackloggdUrl  = backloggdURL,
+                Playing       = playingBool,
+                Backlog       = backlogBool,
+                Wishlist      = wishlistBool,
+                Played        = playedStatus
             };
-
-            return game;
         }
 
+        // ────────────────────────────────────────────────────────────────────
+        // Game status write
+        // ────────────────────────────────────────────────────────────────────
 
-        /// <summary>
-        /// Opens a WebView to given url.
-        /// If no url is given, opens to Backloggd.com
-        /// </summary>
-        public void OpenWebView(string url = baseUrl)
+        public async Task ToggleStatusAsync(string gameURL, string status)
         {
-            // TODO: Check if necessary
-            if (verbose)
-            {
-                logger.Trace($"OpenWebView to {url} method called");
-            }
+            webView.NavigateAndWait(gameURL);
+            WaitForElement(".logging-btns");
 
-            webView.Navigate(url);
-            webView.OpenDialog();
+            string script = GenerateStatusToggleScript(status);
+            await ExecuteScriptAsync(script).ConfigureAwait(false);
 
-            logger.Info("Opening webView");
-            IsUserLoggedIn();
-
+            // Brief wait so the setInterval inside the played-status script can
+            // finish clicking the modal before we navigate away.
+            Thread.Sleep(1500);
         }
 
-        
-
-        /// <summary>
-        /// Generates the JavaScript needed to toggle the game's status based on the status parameter.
-        /// </summary>
         private string GenerateStatusToggleScript(string status)
         {
-            if (buttonMapper.TryGetValue(status, out string index) && index != "0")
+            // Quick toggles — Backlog, Playing, Wishlist — click by button index
+            if (buttonIndexMap.TryGetValue(status, out string index))
             {
-                return $"document.getElementsByClassName('button-link btn-play mx-auto')[{index}].click();";
+                return $"document.querySelectorAll('{SelPlayButton}')[{index}].click();";
             }
 
+            // Played-type statuses (played/completed/retired/shelved/abandoned) and the special
+            // "unset-played-btn" value all follow the same pattern: click button[0] to open the
+            // "Set your played status" modal, then wait for and click the target element by id.
+            // For sub-types the id is the status name (e.g. #retired).
+            // For unset, the modal contains a dedicated #unset-played-btn ("Mark as unplayed").
             return $@"
-                // First click on the play button
-                document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
-
-                // Wait for the page to update, then proceed with the next actions
-                const waitForElement = (selector, callback) => {{
-                    const interval = setInterval(() => {{
-                        if (document.querySelector(selector)) {{
-                            clearInterval(interval);
-                            callback();
+                document.querySelectorAll('{SelPlayButton}')[0].click();
+                const waitForEl = (sel, cb) => {{
+                    const iv = setInterval(() => {{
+                        if (document.querySelector(sel)) {{
+                            clearInterval(iv);
+                            cb();
                         }}
-                    }}, 500);
+                    }}, 200);
+                    setTimeout(() => clearInterval(iv), 8000);
                 }};
-
-                waitForElement('#{status}', () => {{
-                    document.getElementsByClassName('button-link btn-play mx-auto')[0].click();
+                waitForEl('#{status}', () => {{
                     document.querySelector('#{status}').click();
                 }});
             ";
         }
 
-
-        public async Task ToggleStatusAsync(string gameURL, string status)
+        private async Task ExecuteScriptAsync(string script)
         {
-            if (verbose)
-            {
-                logger.Trace("ToggleStatusAsync method called");
-            }
-
-            // Generate the script based on the status
-            string script = GenerateStatusToggleScript(status);
-
             try
             {
-                webView.NavigateAndWait(gameURL);
-                await ExecuteScriptAsync(script);
+                var result = await webView.EvaluateScriptAsync(script).ConfigureAwait(false);
+                if (result?.Success == false)
+                    logger.Error($"Script JS error at {webView.GetCurrentAddress()}: {result.Message}");
+                else
+                    logger.Debug($"Script executed at {webView.GetCurrentAddress()}");
             }
             catch (Exception ex)
             {
-                logger.Error($"Failed to toggle status {status} for URL {gameURL}: {ex.Message}");
+                logger.Error($"ExecuteScriptAsync failed: {ex.Message}");
+                throw;
             }
         }
 
-        private async Task ExecuteScriptAsync(string script)
+        // ────────────────────────────────────────────────────────────────────
+        // Game search
+        // ────────────────────────────────────────────────────────────────────
+
+        public List<BackloggdSearchResult> SearchGames(string query)
         {
-            if (verbose)
-            {
-                logger.Trace("ExecuteScriptAsync method called");
-            }
+            string searchUrl = $"{BaseUrl}/search/games/{Uri.EscapeDataString(query)}";
+            logger.Debug($"SearchGames: {searchUrl}");
+            webView.NavigateAndWait(searchUrl);
 
-            bool eventHandled = false;
-            var navigationCompleted = new TaskCompletionSource<bool>();
+            // #search-results is empty in the initial HTML — results are injected by a Turbo
+            // Frame with loading="lazy", which may not fire in an offscreen view (no viewport).
+            // Force it to load immediately.
+            webView.EvaluateScriptAsync(
+                "var f = document.querySelector('turbo-frame#pagination');" +
+                "if (f) {" +
+                "  f.removeAttribute('loading');" +
+                "  if (typeof f.reload === 'function') { f.reload(); }" +
+                "  else { var s = f.getAttribute('src'); f.setAttribute('src',''); f.setAttribute('src',s); }" +
+                "}"
+            ).GetAwaiter().GetResult();
 
-            webView.LoadingChanged += async (s, e) =>
+            bool resultsReady = WaitForElement("#search-results > *");
+            if (!resultsReady)
+                logger.Warn("SearchGames: #search-results still empty after wait — Turbo Frame may not have loaded.");
+
+            var parser   = new HtmlParser();
+            var document = parser.Parse(webView.GetPageSource());
+            var results  = new List<BackloggdSearchResult>();
+
+            foreach (var card in document.QuerySelectorAll(SelSearchCard).Take(10))
             {
-                if (!e.IsLoading && (!navigationCompleted.Task.IsCompleted && !eventHandled))
+                var link  = card.QuerySelector(SelSearchLink);
+                if (link == null) continue;
+
+                var img   = card.QuerySelector(SelSearchImage);
+                var title = card.QuerySelector(SelSearchTitle);
+                var year  = card.QuerySelector(SelSearchYear);
+
+                results.Add(new BackloggdSearchResult
                 {
-                    eventHandled = true;
-                    logger.Debug("In ExecuteScriptAsync LoadingChanged event handler");
-
-                    try
-                    {
-                        var result = await webView.EvaluateScriptAsync(script);
-                        logger.Debug($"Executed script: {script} at: {webView.GetCurrentAddress()} with result: {result}");
-                        navigationCompleted.SetResult(true);
-                    }
-                    catch (Exception exception)
-                    {
-                        logger.Error($"Error in ExecuteScriptAsync: {exception.Message}");
-                        navigationCompleted.SetResult(false);
-                    }
-                }
-            };
-
-            // Wait for the script execution to complete
-            await navigationCompleted.Task.ConfigureAwait(false);
-        }
-
-
-
-        public string SetBackloggdUrl(string name = null)
-        {
-            logger.Trace("In SetBackloggdUrlAsync");
-            string searchUrl = name != null
-                ? $"{baseUrl}/search/games/{name.Replace(" ", "%20")}"
-                : baseUrl;
-
-            //string url = BackloggdStatus.DefaultURL;
-            //var navigationCompleted = new TaskCompletionSource<string>();
-
-            //webView.LoadingChanged += (s, e) =>
-            //{
-            //    if (!e.IsLoading)
-            //    {
-            //        var currentAddress = webView.GetCurrentAddress();
-            //        if (!string.IsNullOrEmpty(currentAddress) && currentAddress.Contains("backloggd.com/games"))
-            //        {
-            //            navigationCompleted.SetResult(currentAddress);
-            //            webView.Close();
-            //        }
-            //    }
-            //};
-
-            webView.Navigate(searchUrl);
-            webView.OpenDialog();
-
-            var currentAddress = webView.GetCurrentAddress();
-            logger.Trace($"currentAddress is: {currentAddress}");
-
-            if (string.IsNullOrEmpty(currentAddress) || !currentAddress.Contains($"{baseUrl}/games"))
-            {
-                //navigationCompleted.SetResult(currentAddress);
-                //webView.Close();
-                currentAddress = BackloggdStatus.DefaultURL;
+                    Title        = title?.TextContent.Trim()
+                                ?? link.GetAttribute("title")
+                                ?? "Unknown",
+                    Url          = BaseUrl + link.GetAttribute("href"),
+                    ThumbnailUrl = img?.GetAttribute("src"),
+                    Year         = year?.TextContent.Trim()
+                });
             }
-            logger.Trace($"SetBackloggdUrlAsync returning {currentAddress}");
-            return currentAddress;
+
+            logger.Debug($"SearchGames: {results.Count} results for \"{query}\".");
+            return results;
         }
 
+        // ────────────────────────────────────────────────────────────────────
+        // Helpers
+        // ────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Polls the page until <paramref name="cssSelector"/> is present, or
+        /// gives up after <paramref name="maxAttempts"/> * <paramref name="delayMs"/> ms.
+        /// Returns true if the element was found.
+        /// </summary>
+        private bool WaitForElement(string cssSelector, int maxAttempts = 20, int delayMs = 500)
+        {
+            for (int i = 0; i < maxAttempts; i++)
+            {
+                try
+                {
+                    var r = webView.EvaluateScriptAsync(
+                        $"document.querySelector('{cssSelector}') !== null"
+                    ).GetAwaiter().GetResult();
+
+                    if (r?.Result is true)
+                        return true;
+                }
+                catch (Exception ex)
+                {
+                    logger.Warn($"WaitForElement poll failed: {ex.Message}");
+                }
+                Thread.Sleep(delayMs);
+            }
+            return false;
+        }
     }
 }
