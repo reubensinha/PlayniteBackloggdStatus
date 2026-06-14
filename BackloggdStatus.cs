@@ -83,7 +83,9 @@ namespace BackloggdStatus
                 Settings.RefreshMappedGames(PlayniteApi);
             };
 
-            Settings.OnSyncAllRequested = () => SyncAll();
+            Settings.OnSyncAllRequested = () => PlayniteApi.Dialogs.ActivateGlobalProgress(
+                args => SyncAll(args),
+                new GlobalProgressOptions("Syncing all games…", cancelable: true));
 
             Settings.OnOpenLogRequested = () =>
             {
@@ -136,7 +138,9 @@ namespace BackloggdStatus
                 {
                     MenuSection = "@BackloggdStatus",
                     Description = "Sync All",
-                    Action = _ => Task.Run(() => SyncAll()).GetAwaiter().GetResult()
+                    Action = _ => PlayniteApi.Dialogs.ActivateGlobalProgress(
+                        progress => SyncAll(progress),
+                        new GlobalProgressOptions("Syncing all games…", cancelable: true))
                 };
             }
 
@@ -194,7 +198,17 @@ namespace BackloggdStatus
             {
                 MenuSection = "BackloggdStatus",
                 Description = "Refresh Status",
-                Action = _ => ReplaceGame(bg, Task.Run(() => backloggdAPI.RefreshStatus(bg)).GetAwaiter().GetResult())
+                Action = _ =>
+                {
+                    BackloggdGame updated = null;
+                    var r = PlayniteApi.Dialogs.ActivateGlobalProgress(progress =>
+                    {
+                        progress.IsIndeterminate = true;
+                        updated = backloggdAPI.RefreshStatus(bg);
+                    }, new GlobalProgressOptions("Refreshing status…", cancelable: true));
+                    if (!r.Canceled)
+                        ReplaceGame(bg, updated);
+                }
             };
 
             yield return new GameMenuItem
@@ -220,13 +234,16 @@ namespace BackloggdStatus
                     Description = "Remove Played Status",
                     Action = _ =>
                     {
-                        var updated = Task.Run(async () =>
+                        BackloggdGame updated = null;
+                        var r = PlayniteApi.Dialogs.ActivateGlobalProgress(async progress =>
                         {
+                            progress.IsIndeterminate = true;
                             // Opens the played-type modal, then clicks #unset-played-btn ("Mark as unplayed")
-                            await backloggdAPI.ToggleStatusAsync(bg.BackloggdUrl, "unset-played-btn");
-                            return backloggdAPI.RefreshStatus(bg);
-                        }).GetAwaiter().GetResult();
-                        ReplaceGame(bg, updated);
+                            await backloggdAPI.ToggleStatusAsync(bg.BackloggdUrl, "unset-played-btn", playedAlreadySet: true);
+                            updated = backloggdAPI.RefreshStatus(bg);
+                        }, new GlobalProgressOptions("Removing played status…", cancelable: true));
+                        if (!r.Canceled)
+                            ReplaceGame(bg, updated);
                     }
                 };
             }
@@ -241,12 +258,15 @@ namespace BackloggdStatus
                     Description = Check(isActive) + psName,
                     Action = _ =>
                     {
-                        var updated = Task.Run(async () =>
+                        BackloggdGame updated = null;
+                        var r = PlayniteApi.Dialogs.ActivateGlobalProgress(async progress =>
                         {
-                            await backloggdAPI.ToggleStatusAsync(bg.BackloggdUrl, psName.ToLower());
-                            return backloggdAPI.RefreshStatus(bg);
-                        }).GetAwaiter().GetResult();
-                        ReplaceGame(bg, updated);
+                            progress.IsIndeterminate = true;
+                            await backloggdAPI.ToggleStatusAsync(bg.BackloggdUrl, psName.ToLower(), bg.Played.HasValue);
+                            updated = backloggdAPI.RefreshStatus(bg);
+                        }, new GlobalProgressOptions($"Setting {psName}…", cancelable: true));
+                        if (!r.Canceled)
+                            ReplaceGame(bg, updated);
                     }
                 };
             }
@@ -295,12 +315,15 @@ namespace BackloggdStatus
                 Description = Check(isActive) + statusName,
                 Action = _ =>
                 {
-                    var updated = Task.Run(async () =>
+                    BackloggdGame updated = null;
+                    var r = PlayniteApi.Dialogs.ActivateGlobalProgress(async args =>
                     {
+                        args.IsIndeterminate = true;
                         await backloggdAPI.ToggleStatusAsync(bg.BackloggdUrl, statusName);
-                        return backloggdAPI.RefreshStatus(bg);
-                    }).GetAwaiter().GetResult();
-                    ReplaceGame(bg, updated);
+                        updated = backloggdAPI.RefreshStatus(bg);
+                    }, new GlobalProgressOptions($"Setting {statusName}…", cancelable: true));
+                    if (!r.Canceled)
+                        ReplaceGame(bg, updated);
                 }
             };
         }
@@ -319,11 +342,21 @@ namespace BackloggdStatus
             SavePluginSettings(Settings.Settings);
         }
 
-        private void SyncAll()
+        private void SyncAll(GlobalProgressActionArgs args = null)
         {
             logger.Info("SyncAll started.");
-            foreach (var bg in Settings.Settings.BackloggdGamesList.ToList())
+            var games = Settings.Settings.BackloggdGamesList.ToList();
+            if (args != null) args.ProgressMaxValue = games.Count;
+
+            for (int i = 0; i < games.Count; i++)
             {
+                if (args?.CancelToken.IsCancellationRequested == true) break;
+                var bg = games[i];
+                if (args != null)
+                {
+                    args.Text = $"Syncing {bg.BackloggdName} ({i + 1}/{games.Count})";
+                    args.CurrentProgressValue = i + 1;
+                }
                 if (PlayniteApi.Database.Games.FirstOrDefault(g => g.Id == bg.GameId) == null)
                 {
                     Settings.Settings.BackloggdGamesList.Remove(bg);
@@ -338,10 +371,16 @@ namespace BackloggdStatus
 
         private void LinkGame(Game playniteGame)
         {
-            var results = Task.Run(() => backloggdAPI.SearchGames(playniteGame.Name))
-                             .GetAwaiter().GetResult();
+            List<BackloggdSearchResult> results = null;
+            var searchResult = PlayniteApi.Dialogs.ActivateGlobalProgress(args =>
+            {
+                args.IsIndeterminate = true;
+                results = backloggdAPI.SearchGames(playniteGame.Name);
+            }, new GlobalProgressOptions($"Searching for \"{playniteGame.Name}\"…", cancelable: true));
 
-            if (results.Count == 0)
+            if (searchResult.Canceled) return;
+
+            if (results == null || results.Count == 0)
             {
                 PlayniteApi.Dialogs.ShowMessage(
                     $"No Backloggd results found for \"{playniteGame.Name}\".",
@@ -356,9 +395,12 @@ namespace BackloggdStatus
 
             if (dialog.ShowDialog() == true && dialog.Result != null)
             {
-                var linked = Task.Run(() =>
-                    backloggdAPI.GetGameFromURL(dialog.Result.Url, playniteGame.Id))
-                    .GetAwaiter().GetResult();
+                BackloggdGame linked = null;
+                PlayniteApi.Dialogs.ActivateGlobalProgress(args =>
+                {
+                    args.IsIndeterminate = true;
+                    linked = backloggdAPI.GetGameFromURL(dialog.Result.Url, playniteGame.Id);
+                }, new GlobalProgressOptions($"Fetching \"{dialog.Result.Title}\"…"));
 
                 if (linked != null)
                 {

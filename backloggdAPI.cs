@@ -238,10 +238,29 @@ namespace BackloggdStatus
         // Game status write
         // ────────────────────────────────────────────────────────────────────
 
-        public async Task ToggleStatusAsync(string gameURL, string status)
+        public async Task ToggleStatusAsync(string gameURL, string status, bool playedAlreadySet = false)
         {
             webView.NavigateAndWait(gameURL);
             WaitForElement(".logging-btns");
+
+            bool isPlayedSubType = !buttonIndexMap.ContainsKey(status) && status != "unset-played-btn";
+
+            if (isPlayedSubType && !playedAlreadySet)
+            {
+                // From unset: button[0] sets Completed immediately with no modal.
+                await ExecuteScriptAsync($"document.querySelectorAll('{SelPlayButton}')[0].click();")
+                    .ConfigureAwait(false);
+
+                if (status == "completed")
+                {
+                    Thread.Sleep(1500);
+                    return;
+                }
+
+                // For any other sub-type: Completed is now set, so the next button[0] click will
+                // open the modal — wait for it to register before re-clicking.
+                Thread.Sleep(1000);
+            }
 
             string script = GenerateStatusToggleScript(status);
             await ExecuteScriptAsync(script).ConfigureAwait(false);
