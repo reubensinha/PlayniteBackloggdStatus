@@ -380,7 +380,7 @@ namespace BackloggdStatus
         /// gives up after <paramref name="maxAttempts"/> * <paramref name="delayMs"/> ms.
         /// Returns true if the element was found.
         /// </summary>
-        private bool WaitForElement(string cssSelector, int maxAttempts = 20, int delayMs = 500)
+        private bool WaitForElement(string cssSelector, int maxAttempts = 30, int delayMs = 500)
         {
             for (int i = 0; i < maxAttempts; i++)
             {
