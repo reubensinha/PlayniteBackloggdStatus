@@ -55,6 +55,11 @@
     <Compile Include="Views\GameSearchDialog.xaml.cs">
       <DependentUpon>GameSearchDialog.xaml</DependentUpon>
     </Compile>
+    <!-- Debug-only test infrastructure -->
+    <Compile Include="BackloggdTestRunner.cs" Condition="'$(Configuration)' == 'Debug'" />
+    <Compile Include="Views\TestResultsDialog.xaml.cs" Condition="'$(Configuration)' == 'Debug'">
+      <DependentUpon>TestResultsDialog.xaml</DependentUpon>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="extension.yaml">
@@ -76,6 +81,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Views\GameSearchDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\TestResultsDialog.xaml" Condition="'$(Configuration)' == 'Debug'">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

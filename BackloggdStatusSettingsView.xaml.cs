@@ -12,6 +12,9 @@ namespace BackloggdStatus
         public BackloggdStatusSettingsView()
         {
             InitializeComponent();
+#if DEBUG
+            RunTestsButton.Visibility = Visibility.Visible;
+#endif
         }
 
         private void SignIn_Click(object sender, RoutedEventArgs e)
@@ -31,5 +34,8 @@ namespace BackloggdStatus
             if (sender is Button btn && btn.Tag is Guid id)
                 ViewModel?.OnUnlinkRequested?.Invoke(id);
         }
+
+        private void RunTestsButton_Click(object sender, RoutedEventArgs e)
+            => ViewModel?.OnRunTestsRequested?.Invoke();
     }
 }

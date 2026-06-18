@@ -55,12 +55,13 @@ namespace BackloggdStatus
 
         // ── Action delegates wired by GetSettingsView() ─────────────────────
 
-        [DontSerialize] public Action         OnSignInRequested  { get; set; }
-        [DontSerialize] public Action         OnSignOutRequested { get; set; }
-        [DontSerialize] public Action<Guid>   OnUnlinkRequested  { get; set; }
-        [DontSerialize] public Action         OnSyncAllRequested { get; set; }
-        [DontSerialize] public Action         OnOpenLogRequested { get; set; }
-        [DontSerialize] public string         LogFilePath        { get; set; }
+        [DontSerialize] public Action         OnSignInRequested    { get; set; }
+        [DontSerialize] public Action         OnSignOutRequested   { get; set; }
+        [DontSerialize] public Action<Guid>   OnUnlinkRequested    { get; set; }
+        [DontSerialize] public Action         OnSyncAllRequested   { get; set; }
+        [DontSerialize] public Action         OnOpenLogRequested   { get; set; }
+        [DontSerialize] public Action         OnRunTestsRequested  { get; set; }
+        [DontSerialize] public string         LogFilePath          { get; set; }
 
         // ── Mapped games display list (bound by settings DataGrid) ──────────
 

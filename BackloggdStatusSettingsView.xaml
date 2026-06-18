@@ -90,7 +90,7 @@
                     <CheckBox Content="Enable debug logging"
                               IsChecked="{Binding Settings.IsDebugMode}"
                               Margin="0,0,0,8"/>
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="Plugin data folder: "
                                    VerticalAlignment="Center"/>
                         <TextBlock Text="{Binding LogFilePath}"
@@ -103,6 +103,11 @@
                                 Width="90"
                                 Click="OpenLog_Click"/>
                     </StackPanel>
+                    <Button x:Name="RunTestsButton"
+                            Content="Run Integration Tests"
+                            HorizontalAlignment="Left"
+                            Visibility="Collapsed"
+                            Click="RunTestsButton_Click"/>
                 </StackPanel>
             </GroupBox>
 

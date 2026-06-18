@@ -93,6 +93,23 @@ namespace BackloggdStatus
                 catch (Exception ex) { logger.Error($"Could not open log folder: {ex.Message}"); }
             };
 
+#if DEBUG
+            string dataPath = GetPluginUserDataPath();
+            Settings.OnRunTestsRequested = () =>
+            {
+                List<TestResult> results = null;
+                PlayniteApi.Dialogs.ActivateGlobalProgress(progress =>
+                {
+                    progress.IsIndeterminate = true;
+                    progress.Text = "Running integration tests…";
+                    results = new BackloggdTestRunner(backloggdAPI, dataPath).RunAll();
+                }, new GlobalProgressOptions("Integration Tests", cancelable: false));
+
+                if (results != null)
+                    new Views.TestResultsDialog(results) { Owner = Application.Current.MainWindow }.ShowDialog();
+            };
+#endif
+
             Settings.LogFilePath = GetPluginUserDataPath();
             Settings.RefreshMappedGames(PlayniteApi);
 
