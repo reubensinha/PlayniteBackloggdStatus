@@ -142,12 +142,14 @@ namespace BackloggdStatus
                 before = EnsureCleanState(before);
 
                 api.ToggleStatusAsync(TestGameUrl, "Playing").GetAwaiter().GetResult();
+                LogDomState("after-set-playing");
                 var afterSet = api.GetGameFromURL(TestGameUrl, Guid.Empty);
                 Log($"After set — Playing:{afterSet?.Playing}");
                 if (afterSet?.Playing != true)
                     throw new Exception("Playing not active after toggle — button[1] click or selector broken");
 
                 api.ToggleStatusAsync(TestGameUrl, "Playing").GetAwaiter().GetResult();
+                LogDomState("after-unset-playing");
                 var afterUnset = api.GetGameFromURL(TestGameUrl, Guid.Empty);
                 Log($"After unset — Playing:{afterUnset?.Playing}");
                 if (afterUnset?.Playing == true)
@@ -163,12 +165,14 @@ namespace BackloggdStatus
                 Log($"State after precondition cleanup — Played:{before?.Played?.ToString() ?? "null"}");
 
                 api.ToggleStatusAsync(TestGameUrl, "completed", playedAlreadySet: false).GetAwaiter().GetResult();
+                LogDomState("after-set-completed");
                 var afterSet = api.GetGameFromURL(TestGameUrl, Guid.Empty);
                 Log($"After set — Played:{afterSet?.Played?.ToString() ?? "null"}");
                 if (afterSet?.Played != PlayedStatus.Completed)
                     throw new Exception($"Expected Completed, got {afterSet?.Played?.ToString() ?? "null"} — direct-set path broken");
 
                 api.ToggleStatusAsync(TestGameUrl, "unset-played-btn", playedAlreadySet: true).GetAwaiter().GetResult();
+                LogDomState("after-unset-completed");
                 var afterUnset = api.GetGameFromURL(TestGameUrl, Guid.Empty);
                 Log($"After unset — Played:{afterUnset?.Played?.ToString() ?? "null"}");
                 if (afterUnset?.Played.HasValue == true)
@@ -184,12 +188,14 @@ namespace BackloggdStatus
                 Log($"State after precondition cleanup — Played:{before?.Played?.ToString() ?? "null"}");
 
                 api.ToggleStatusAsync(TestGameUrl, "retired", playedAlreadySet: false).GetAwaiter().GetResult();
+                LogDomState("after-set-retired");
                 var afterSet = api.GetGameFromURL(TestGameUrl, Guid.Empty);
                 Log($"After set — Played:{afterSet?.Played?.ToString() ?? "null"}");
                 if (afterSet?.Played != PlayedStatus.Retired)
                     throw new Exception($"Expected Retired, got {afterSet?.Played?.ToString() ?? "null"} — double-click workaround or modal JS broken");
 
                 api.ToggleStatusAsync(TestGameUrl, "unset-played-btn", playedAlreadySet: true).GetAwaiter().GetResult();
+                LogDomState("after-cleanup-retired");
                 var afterUnset = api.GetGameFromURL(TestGameUrl, Guid.Empty);
                 Log($"After cleanup — Played:{afterUnset?.Played?.ToString() ?? "null"}");
                 if (afterUnset?.Played.HasValue == true)
@@ -208,6 +214,7 @@ namespace BackloggdStatus
                 api.ToggleStatusAsync(TestGameUrl, "unset-played-btn", playedAlreadySet: true).GetAwaiter().GetResult();
                 sw.Stop();
                 Log($"Modal interaction elapsed: {sw.ElapsedMilliseconds}ms  (limit: 6500ms before 8s JS timeout)");
+                LogDomState("after-modal-unset");
 
                 var final = api.GetGameFromURL(TestGameUrl, Guid.Empty);
                 Log($"Final state — Played:{final?.Played?.ToString() ?? "null"}");
@@ -230,16 +237,20 @@ namespace BackloggdStatus
             {
                 Log("[Precondition] Playing was already set — clearing before test");
                 api.ToggleStatusAsync(TestGameUrl, "Playing").GetAwaiter().GetResult();
+                LogDomState("precondition-after-unset-playing");
                 dirty = true;
             }
             if (state.Played.HasValue)
             {
                 Log($"[Precondition] Played was {state.Played} — clearing before test");
                 api.ToggleStatusAsync(TestGameUrl, "unset-played-btn", playedAlreadySet: true).GetAwaiter().GetResult();
+                LogDomState("precondition-after-unset-played");
                 dirty = true;
             }
             if (!dirty) return state;
-            return api.GetGameFromURL(TestGameUrl, Guid.Empty);
+            var refetched = api.GetGameFromURL(TestGameUrl, Guid.Empty);
+            LogDomState("precondition-after-refetch");
+            return refetched;
         }
 
         // Reaches into BackloggdAPI's private webView field to get page source for button-count assertions.
@@ -248,6 +259,31 @@ namespace BackloggdStatus
             var field   = typeof(BackloggdAPI).GetField("webView", BindingFlags.NonPublic | BindingFlags.Instance);
             var webView = field?.GetValue(api) as Playnite.SDK.IWebView;
             return webView?.GetPageSource() ?? throw new Exception("Could not access BackloggdAPI.webView via reflection");
+        }
+
+        private string RunJs(string script)
+        {
+            var field = typeof(BackloggdAPI).GetField("webView", BindingFlags.NonPublic | BindingFlags.Instance);
+            var wv    = field?.GetValue(api) as Playnite.SDK.IWebView;
+            if (wv == null) return "(webView unavailable)";
+            try
+            {
+                var r = wv.EvaluateScriptAsync(script).GetAwaiter().GetResult();
+                return r?.Result?.ToString() ?? "(null)";
+            }
+            catch (Exception ex) { return $"(JS error: {ex.Message})"; }
+        }
+
+        private void LogDomState(string label)
+        {
+            const string btnSel = "#buttons > div.col.px-0.mt-auto > button";
+            Log($"[DOM:{label}]");
+            Log($"  url:           {RunJs("window.location.href")}");
+            Log($"  play_type:     {RunJs($"document.querySelector('{btnSel}')?.getAttribute('play_type') ?? '(no button)'")}");
+            Log($"  played-fill:   {RunJs("!!document.querySelector('.played-btn-container.btn-play-fill')")}");
+            Log($"  playing-fill:  {RunJs("!!document.querySelector('.playing-btn-container.btn-play-fill')")}");
+            Log($"  #unset-played: {RunJs("!!document.querySelector('#unset-played-btn')")}");
+            Log($"  modal-any:     {RunJs("!!document.querySelector('#unset-played-btn,#retired,#completed,#shelved,#abandoned,#played')")}");
         }
 
         private TestResult Run(string name, Action test)
@@ -266,6 +302,7 @@ namespace BackloggdStatus
             {
                 sw.Stop();
                 logger.Error($"[Test] FAIL ({sw.ElapsedMilliseconds}ms): {name} — {ex.Message}");
+                try { LogDomState("failure-dump"); } catch { }
                 return new TestResult { Name = name, Passed = false, Message = ex.Message, StackTrace = ex.ToString(), ElapsedMs = sw.ElapsedMilliseconds, Details = _currentDetails };
             }
         }

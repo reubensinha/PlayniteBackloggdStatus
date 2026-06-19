@@ -168,7 +168,7 @@ namespace BackloggdStatus
             }
 
             logger.Debug($"GetGameFromURL: navigating to {backloggdURL}");
-            webView.NavigateAndWait(backloggdURL);
+            NavigateIfNeeded(backloggdURL);
 
             // Wait for the button row to exist — .logging-btns is always present regardless of
             // whether any status is active (.btn-play-fill only exists when a status IS set)
@@ -240,7 +240,14 @@ namespace BackloggdStatus
 
         public async Task ToggleStatusAsync(string gameURL, string status, bool playedAlreadySet = false)
         {
-            webView.NavigateAndWait(gameURL);
+            // Modal operations (played sub-types, unset) require a fresh page load — Backloggd's
+            // modal JS doesn't reinitialize correctly after repeated Turbo Stream updates on the
+            // same page. Quick toggles (Playing/Backlog/Wishlist) are stateless and safe to skip.
+            bool isModalOp = !buttonIndexMap.ContainsKey(status);
+            if (isModalOp)
+                webView.NavigateAndWait(gameURL);
+            else
+                NavigateIfNeeded(gameURL);
             WaitForElement(".logging-btns");
 
             bool isPlayedSubType = !buttonIndexMap.ContainsKey(status) && status != "unset-played-btn";
@@ -253,21 +260,20 @@ namespace BackloggdStatus
 
                 if (status == "completed")
                 {
-                    Thread.Sleep(1500);
+                    Thread.Sleep(1000);
                     return;
                 }
 
-                // For any other sub-type: Completed is now set, so the next button[0] click will
-                // open the modal — wait for it to register before re-clicking.
-                Thread.Sleep(1000);
+                // For any other sub-type: poll until the played-btn-container shows the
+                // Completed state — only then has button[0]'s behaviour changed to "open modal".
+                WaitForElement(".played-btn-container.btn-play-fill", maxAttempts: 10, delayMs: 200);
             }
 
             string script = GenerateStatusToggleScript(status);
             await ExecuteScriptAsync(script).ConfigureAwait(false);
 
-            // Brief wait so the setInterval inside the played-status script can
-            // finish clicking the modal before we navigate away.
-            Thread.Sleep(1500);
+            // Quick toggles need one Turbo Stream round-trip (~1s); modal ops need two (~1.5s).
+            Thread.Sleep(isModalOp ? 1500 : 1000);
         }
 
         private string GenerateStatusToggleScript(string status)
@@ -374,6 +380,13 @@ namespace BackloggdStatus
         // ────────────────────────────────────────────────────────────────────
         // Helpers
         // ────────────────────────────────────────────────────────────────────
+
+        private void NavigateIfNeeded(string url)
+        {
+            var current = webView.GetCurrentAddress() ?? "";
+            if (!current.TrimEnd('/').Equals(url.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+                webView.NavigateAndWait(url);
+        }
 
         /// <summary>
         /// Polls the page until <paramref name="cssSelector"/> is present, or
