@@ -1,25 +1,41 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace BackloggdStatus
 {
     public partial class BackloggdStatusSettingsView : UserControl
     {
+        private BackloggdStatusSettingsViewModel ViewModel =>
+            DataContext as BackloggdStatusSettingsViewModel;
+
         public BackloggdStatusSettingsView()
         {
             InitializeComponent();
+#if DEBUG
+            RunTestsButton.Visibility = Visibility.Visible;
+#endif
         }
+
+        private void SignIn_Click(object sender, RoutedEventArgs e)
+            => ViewModel?.OnSignInRequested?.Invoke();
+
+        private void SignOut_Click(object sender, RoutedEventArgs e)
+            => ViewModel?.OnSignOutRequested?.Invoke();
+
+        private void SyncAll_Click(object sender, RoutedEventArgs e)
+            => ViewModel?.OnSyncAllRequested?.Invoke();
+
+        private void OpenLog_Click(object sender, RoutedEventArgs e)
+            => ViewModel?.OnOpenLogRequested?.Invoke();
+
+        private void Unlink_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is Guid id)
+                ViewModel?.OnUnlinkRequested?.Invoke(id);
+        }
+
+        private void RunTestsButton_Click(object sender, RoutedEventArgs e)
+            => ViewModel?.OnRunTestsRequested?.Invoke();
     }
 }

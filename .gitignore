@@ -361,3 +361,14 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+
+.vscode/
+Backloggd_game_page_files/
+Backloggd_game_page.htm
+Backloggd_home_page_files/
+Backloggd_home_page.htm
+Backloggd_search_page_files/
+Backloggd_search_page.htm
+PROJECT_DESIGN_DOCUMENT.md
+./bin/

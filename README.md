@@ -9,10 +9,15 @@ BackloggdStatus is an extension for the [Playnite](https://playnite.link/) Libra
 
 - _TODO: Add extension to Playnite Offical Add-on Database_
 
+## Installing In-Development Version.
+- Download the bin/Release folder from Develop branch
+- In Playnite, go to Settings > For Developers
+	- Add the path to the bin/Release folder to the "External extensions" field
+
 ## Known Issues
 
 - Currently WebView dialogs do not automatically close upon logging in or when setting the Url of a game.
-- I'm working on it.
+- After closing the WebView dialog, takes a long time to return to Playnite if changes to game have been made.
 
 ## Planned features / Changes
 

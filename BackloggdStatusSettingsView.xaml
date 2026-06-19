@@ -1,13 +1,116 @@
-﻿<UserControl x:Class="BackloggdStatus.BackloggdStatusSettingsView"
+<UserControl x:Class="BackloggdStatus.BackloggdStatusSettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d"
-             d:DesignHeight="400" d:DesignWidth="600">
-    <StackPanel>
-        <TextBlock Text="List of Games" />
+             d:DesignHeight="600" d:DesignWidth="700">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="12">
 
-        
-    </StackPanel>
+            <!-- ── Account ──────────────────────────────────────────────── -->
+            <GroupBox Header="Account" Margin="0,0,0,12">
+                <StackPanel Margin="8">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="Signed in as: " VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Username}"
+                                   FontWeight="Bold"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Sign In"
+                                Width="80"
+                                Margin="0,0,8,0"
+                                Click="SignIn_Click"/>
+                        <Button Content="Sign Out"
+                                Width="80"
+                                Click="SignOut_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </GroupBox>
+
+            <!-- ── Mapped Games ─────────────────────────────────────────── -->
+            <GroupBox Header="Mapped Games" Margin="0,0,0,12">
+                <DataGrid ItemsSource="{Binding MappedGames}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="False"
+                          HeadersVisibility="Column"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          SelectionMode="Single"
+                          MinHeight="120"
+                          MaxHeight="220">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Playnite Game"
+                                            Binding="{Binding PlayniteName}"
+                                            IsReadOnly="True"
+                                            Width="*"/>
+                        <DataGridTextColumn Header="Backloggd Title"
+                                            Binding="{Binding BackloggdName}"
+                                            IsReadOnly="True"
+                                            Width="*"/>
+                        <DataGridTextColumn Header="Status"
+                                            Binding="{Binding StatusSummary}"
+                                            IsReadOnly="True"
+                                            Width="130"/>
+                        <DataGridTextColumn Header="Last Synced"
+                                            Binding="{Binding LastSyncedDisplay}"
+                                            IsReadOnly="True"
+                                            Width="120"/>
+                        <DataGridTemplateColumn Header="" Width="60" IsReadOnly="False">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Content="Unlink"
+                                            Tag="{Binding GameId}"
+                                            Click="Unlink_Click"
+                                            Padding="4,2"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </GroupBox>
+
+            <!-- ── Sync Options ─────────────────────────────────────────── -->
+            <GroupBox Header="Sync Options" Margin="0,0,0,12">
+                <StackPanel Margin="8">
+                    <CheckBox Content="Sync status on Playnite startup"
+                              IsChecked="{Binding Settings.SyncOnStartup}"
+                              Margin="0,0,0,8"/>
+                    <Button Content="Sync All Now"
+                            Width="100"
+                            HorizontalAlignment="Left"
+                            Click="SyncAll_Click"/>
+                </StackPanel>
+            </GroupBox>
+
+            <!-- ── Debug / Diagnostics ──────────────────────────────────── -->
+            <GroupBox Header="Debug / Diagnostics">
+                <StackPanel Margin="8">
+                    <CheckBox Content="Enable debug logging"
+                              IsChecked="{Binding Settings.IsDebugMode}"
+                              Margin="0,0,0,8"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="Plugin data folder: "
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding LogFilePath}"
+                                   VerticalAlignment="Center"
+                                   Opacity="0.7"
+                                   Margin="4,0,8,0"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="300"/>
+                        <Button Content="Open Folder"
+                                Width="90"
+                                Click="OpenLog_Click"/>
+                    </StackPanel>
+                    <Button x:Name="RunTestsButton"
+                            Content="Run Integration Tests"
+                            HorizontalAlignment="Left"
+                            Visibility="Collapsed"
+                            Click="RunTestsButton_Click"/>
+                </StackPanel>
+            </GroupBox>
+
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>
