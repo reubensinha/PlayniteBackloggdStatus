@@ -9,6 +9,14 @@ Description: |-
   Sync your Playnite library with Backloggd. Set Playing, Backlog, Wishlist,
   and Played sub-statuses (Completed, Retired, Shelved, Abandoned, Played)
   directly from Playnite's game context menu.
+IconUrl: https://raw.githubusercontent.com/reubensinha/PlayniteBackloggdStatus/master/icon.png
 Tags: ["Generic", "Status", "Backloggd"]
 Links:
   GitHub: https://github.com/reubensinha/PlayniteBackloggdStatus
+Screenshots:
+  - Thumbnail: https://raw.githubusercontent.com/reubensinha/PlayniteBackloggdStatus/master/docs/img/context_menu.png
+    Image: https://raw.githubusercontent.com/reubensinha/PlayniteBackloggdStatus/master/docs/img/context_menu.png
+  - Thumbnail: https://raw.githubusercontent.com/reubensinha/PlayniteBackloggdStatus/master/docs/img/search_dialog.png
+    Image: https://raw.githubusercontent.com/reubensinha/PlayniteBackloggdStatus/master/docs/img/search_dialog.png
+  - Thumbnail: https://raw.githubusercontent.com/reubensinha/PlayniteBackloggdStatus/master/docs/img/settings.png
+    Image: https://raw.githubusercontent.com/reubensinha/PlayniteBackloggdStatus/master/docs/img/settings.png
