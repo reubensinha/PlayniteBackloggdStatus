@@ -3,7 +3,7 @@ Type: Generic
 Name: Backloggd Status
 Author: reubensinha
 ShortDescription: Update your Backloggd status from within Playnite.
-InstallerManifestUrl: https://github.com/reubensinha/PlayniteBackloggdStatus/blob/master/manifests/reubensinha_BackloggdStatus.yaml
+InstallerManifestUrl: https://github.com/reubensinha/PlayniteBackloggdStatus/blob/master/manifests/Generic_BackloggdStatus.yaml
 SourceUrl: https://github.com/reubensinha/PlayniteBackloggdStatus
 Description: |-
   Sync your Playnite library with Backloggd. Set Playing, Backlog, Wishlist,
