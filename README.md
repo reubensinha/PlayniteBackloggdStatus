@@ -25,6 +25,14 @@ A [Playnite](https://playnite.link/) extension that lets you view and update you
 
 ## Installation
 
+### From the Playnite Addon Browser (recommended)
+
+1. Open Playnite and go to **Main Menu → Add-ons…**
+2. Search for **Backloggd Status** under the Generic section.
+3. Click **Install**.
+
+### Manual install
+
 1. Download the `.pext` file from the [Releases](https://github.com/reubensinha/PlayniteBackloggdStatus/releases) page.
 2. Drag the file onto the Playnite window, or open it with Playnite, to install.
 
