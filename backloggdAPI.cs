@@ -168,7 +168,7 @@ namespace BackloggdStatus
             }
 
             logger.Debug($"GetGameFromURL: navigating to {backloggdURL}");
-            NavigateIfNeeded(backloggdURL);
+            webView.NavigateAndWait(backloggdURL);
 
             // Wait for the button row to exist — .logging-btns is always present regardless of
             // whether any status is active (.btn-play-fill only exists when a status IS set)
@@ -177,7 +177,9 @@ namespace BackloggdStatus
                 logger.Warn("GetGameFromURL: status buttons not found after polling — page may have changed structure.");
 
             var parser   = new HtmlParser();
-            var document = parser.Parse(webView.GetPageSource());
+            var pageSource = webView.GetPageSource();
+            logger.Debug($"GetGameFromURL: parsing page — actual URL: {webView.GetCurrentAddress()}, source length: {pageSource?.Length ?? 0}");
+            var document = parser.Parse(pageSource);
 
             // Resilient title selector — falls back through Google-Translate wrapper elements
             var titleEl = document.QuerySelector(SelGameTitle)
@@ -185,7 +187,7 @@ namespace BackloggdStatus
                        ?? document.QuerySelector(SelGameTitle + " font font");
             if (titleEl == null)
             {
-                logger.Error("GetGameFromURL: game title element not found.");
+                logger.Error($"GetGameFromURL: game title element not found. Expected URL: {backloggdURL}, actual URL: {webView.GetCurrentAddress()}");
                 return null;
             }
             string gameName = titleEl.TextContent.Trim();
