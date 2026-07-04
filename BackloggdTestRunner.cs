@@ -107,6 +107,21 @@ namespace BackloggdStatus
                 if (found.Count > 1) Log($"Second result: '{found[1].Title}'");
             }));
 
+            results.Add(Run("Link flow: GetGameFromURL succeeds immediately after SearchGames", () =>
+            {
+                // Regression test for issue #7: NavigateIfNeeded in GetGameFromURL could skip
+                // navigation after SearchGames left the webView in an unexpected Turbo Drive URL
+                // state, causing GetGameFromURL to parse stale DOM and return null.
+                var found = api.SearchGames(TestSearchQuery);
+                if (found.Count == 0)
+                    throw new Exception("SearchGames returned no results — cannot exercise link flow");
+                Log($"SearchGames returned {found.Count} results; first: '{found[0].Title}' ({found[0].Url})");
+                var game = api.GetGameFromURL(found[0].Url, Guid.Empty);
+                Log($"GetGameFromURL result: {(game == null ? "null" : $"'{game.BackloggdName}'")}");
+                if (game == null)
+                    throw new Exception("GetGameFromURL returned null immediately after SearchGames — navigation was likely skipped");
+            }));
+
             // ── Timing tests ────────────────────────────────────────────────
             results.Add(Run("Timing: game page loads within WaitForElement window", () =>
             {
