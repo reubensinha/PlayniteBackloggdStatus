@@ -35,6 +35,9 @@ namespace BackloggdStatus
                 ViewModel?.OnUnlinkRequested?.Invoke(id);
         }
 
+        private void CollectDiagnostics_Click(object sender, RoutedEventArgs e)
+            => ViewModel?.OnCollectDiagnosticsRequested?.Invoke();
+
         private void RunTestsButton_Click(object sender, RoutedEventArgs e)
             => ViewModel?.OnRunTestsRequested?.Invoke();
     }

@@ -168,16 +168,19 @@ namespace BackloggdStatus
             }
 
             logger.Debug($"GetGameFromURL: navigating to {backloggdURL}");
-            NavigateIfNeeded(backloggdURL);
+            webView.NavigateAndWait(backloggdURL);
 
             // Wait for the button row to exist — .logging-btns is always present regardless of
             // whether any status is active (.btn-play-fill only exists when a status IS set)
             bool buttonsReady = WaitForElement(".logging-btns");
+            logger.Debug($"GetGameFromURL: WaitForElement('.logging-btns') = {buttonsReady}");
             if (!buttonsReady)
                 logger.Warn("GetGameFromURL: status buttons not found after polling — page may have changed structure.");
 
-            var parser   = new HtmlParser();
-            var document = parser.Parse(webView.GetPageSource());
+            var parser     = new HtmlParser();
+            var pageSource = webView.GetPageSource();
+            logger.Debug($"GetGameFromURL: parsing page — actual URL: {webView.GetCurrentAddress()}, source length: {pageSource?.Length ?? 0}");
+            var document = parser.Parse(pageSource);
 
             // Resilient title selector — falls back through Google-Translate wrapper elements
             var titleEl = document.QuerySelector(SelGameTitle)
@@ -185,7 +188,8 @@ namespace BackloggdStatus
                        ?? document.QuerySelector(SelGameTitle + " font font");
             if (titleEl == null)
             {
-                logger.Error("GetGameFromURL: game title element not found.");
+                logger.Error($"GetGameFromURL: title not found. Expected='{backloggdURL}', actual='{webView.GetCurrentAddress()}', source={pageSource?.Length ?? 0} bytes");
+                logger.Error($"GetGameFromURL: page snippet: {pageSource?.Substring(0, Math.Min(400, pageSource?.Length ?? 0))}");
                 return null;
             }
             string gameName = titleEl.TextContent.Trim();
@@ -330,12 +334,24 @@ namespace BackloggdStatus
         public List<BackloggdSearchResult> SearchGames(string query)
         {
             string searchUrl = $"{BaseUrl}/search/games/{Uri.EscapeDataString(query)}";
-            logger.Debug($"SearchGames: {searchUrl}");
+            logger.Debug($"SearchGames: navigating to {searchUrl}");
             webView.NavigateAndWait(searchUrl);
+            logger.Debug($"SearchGames: landed on '{webView.GetCurrentAddress()}'");
 
             // #search-results is empty in the initial HTML — results are injected by a Turbo
             // Frame with loading="lazy", which may not fire in an offscreen view (no viewport).
             // Force it to load immediately.
+            bool framePresent = false;
+            try
+            {
+                var frameCheck = webView.EvaluateScriptAsync(
+                    "!!document.querySelector('turbo-frame#pagination')"
+                ).GetAwaiter().GetResult();
+                framePresent = frameCheck?.Result is true;
+            }
+            catch (Exception ex) { logger.Warn($"SearchGames: turbo-frame check failed: {ex.Message}"); }
+            logger.Debug($"SearchGames: turbo-frame#pagination present={framePresent}");
+
             webView.EvaluateScriptAsync(
                 "var f = document.querySelector('turbo-frame#pagination');" +
                 "if (f) {" +
@@ -346,12 +362,14 @@ namespace BackloggdStatus
             ).GetAwaiter().GetResult();
 
             bool resultsReady = WaitForElement("#search-results > *");
+            logger.Debug($"SearchGames: WaitForElement('#search-results > *') = {resultsReady}, URL now='{webView.GetCurrentAddress()}'");
             if (!resultsReady)
                 logger.Warn("SearchGames: #search-results still empty after wait — Turbo Frame may not have loaded.");
 
-            var parser   = new HtmlParser();
-            var document = parser.Parse(webView.GetPageSource());
-            var results  = new List<BackloggdSearchResult>();
+            var parser     = new HtmlParser();
+            var pageSource = webView.GetPageSource();
+            var document   = parser.Parse(pageSource);
+            var results    = new List<BackloggdSearchResult>();
 
             foreach (var card in document.QuerySelectorAll(SelSearchCard).Take(10))
             {
@@ -374,6 +392,8 @@ namespace BackloggdStatus
             }
 
             logger.Debug($"SearchGames: {results.Count} results for \"{query}\".");
+            if (results.Count == 0)
+                logger.Warn($"SearchGames: zero results — page snippet: {pageSource?.Substring(0, Math.Min(300, pageSource?.Length ?? 0))}");
             return results;
         }
 
@@ -384,7 +404,9 @@ namespace BackloggdStatus
         private void NavigateIfNeeded(string url)
         {
             var current = webView.GetCurrentAddress() ?? "";
-            if (!current.TrimEnd('/').Equals(url.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+            bool skip = current.TrimEnd('/').Equals(url.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+            logger.Debug($"NavigateIfNeeded: current='{current}' → {(skip ? "skipping (already on page)" : $"navigating to '{url}'")}");
+            if (!skip)
                 webView.NavigateAndWait(url);
         }
 
@@ -404,7 +426,10 @@ namespace BackloggdStatus
                     ).GetAwaiter().GetResult();
 
                     if (r?.Result is true)
+                    {
+                        logger.Debug($"WaitForElement('{cssSelector}'): found after {i + 1} poll(s) ({(i + 1) * delayMs}ms)");
                         return true;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -412,7 +437,68 @@ namespace BackloggdStatus
                 }
                 Thread.Sleep(delayMs);
             }
+            logger.Warn($"WaitForElement('{cssSelector}'): timed out after {maxAttempts * delayMs}ms");
             return false;
+        }
+
+        public string RunConnectivityDiagnostics()
+        {
+            var sb = new System.Text.StringBuilder();
+
+            // ── Homepage load ────────────────────────────────────────────────
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                webView.NavigateAndWait(BaseUrl);
+                sw.Stop();
+                var homeSource = webView.GetPageSource() ?? "";
+                var homeDoc    = new AngleSharp.Parser.Html.HtmlParser().Parse(homeSource);
+                var homeTitle  = homeDoc.QuerySelector("title")?.TextContent?.Trim() ?? "(no title)";
+                sb.AppendLine($"Homepage load: {sw.ElapsedMilliseconds}ms");
+                sb.AppendLine($"  Landed on:   {webView.GetCurrentAddress()}");
+                sb.AppendLine($"  Source size: {homeSource.Length} bytes");
+                sb.AppendLine($"  Page title:  {homeTitle}");
+
+                bool loggedIn = IsUserLoggedIn(navigate: false);
+                sb.AppendLine($"  Logged in:   {loggedIn}");
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                sb.AppendLine($"Homepage load: FAILED after {sw.ElapsedMilliseconds}ms — {ex.Message}");
+            }
+
+            sb.AppendLine();
+
+            // ── Game page load ───────────────────────────────────────────────
+            const string testUrl = "https://backloggd.com/games/left-4-dead-2/";
+            sw.Restart();
+            try
+            {
+                webView.NavigateAndWait(testUrl);
+                sw.Stop();
+                var gameSource  = webView.GetPageSource() ?? "";
+                var gameDoc     = new AngleSharp.Parser.Html.HtmlParser().Parse(gameSource);
+                bool hasTitle   = gameDoc.QuerySelector(".game-title-section h1") != null;
+                bool hasButtons = gameDoc.QuerySelector(".logging-btns") != null;
+                var  pageTitle  = gameDoc.QuerySelector("title")?.TextContent?.Trim() ?? "(no title)";
+                sb.AppendLine($"Game page load ({testUrl}):");
+                sb.AppendLine($"  Load time:       {sw.ElapsedMilliseconds}ms");
+                sb.AppendLine($"  Landed on:       {webView.GetCurrentAddress()}");
+                sb.AppendLine($"  Source size:     {gameSource.Length} bytes");
+                sb.AppendLine($"  Page title:      {pageTitle}");
+                sb.AppendLine($"  Title selector:  {(hasTitle ? "FOUND" : "NOT FOUND")}");
+                sb.AppendLine($"  Button selector: {(hasButtons ? "FOUND" : "NOT FOUND")}");
+                if (!hasTitle || !hasButtons)
+                    sb.AppendLine($"  Page snippet:    {gameSource.Substring(0, Math.Min(400, gameSource.Length))}");
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                sb.AppendLine($"Game page load: FAILED after {sw.ElapsedMilliseconds}ms — {ex.Message}");
+            }
+
+            return sb.ToString();
         }
     }
 }

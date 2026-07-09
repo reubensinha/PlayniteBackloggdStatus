@@ -103,6 +103,11 @@
                                 Width="90"
                                 Click="OpenLog_Click"/>
                     </StackPanel>
+                    <Button Content="Collect Diagnostics"
+                            Width="150"
+                            HorizontalAlignment="Left"
+                            Margin="0,0,0,4"
+                            Click="CollectDiagnostics_Click"/>
                     <Button x:Name="RunTestsButton"
                             Content="Run Integration Tests"
                             HorizontalAlignment="Left"
