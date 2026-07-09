@@ -1,10 +1,10 @@
 AddonId: BackloggdStatus_228e1135-a326-4a8d-8ee9-edc1c61c0982
 Packages:
-  - Version: 0.2.0
+  - Version: 0.2.1
     RequiredApiVersion: 6.11.0
-    ReleaseDate: 2026-06-18
-    PackageUrl: # TODO: URL to the .pext file on the GitHub release
+    ReleaseDate: 2026-07-08
+    PackageUrl: https://github.com/reubensinha/PlayniteBackloggdStatus/releases/download/v0.2.1/BackloggdStatus_v_0_2_1.pext
     Changelog:
-      - Performance: skip redundant page navigations for quick-toggle operations
-      - Fix: modal operations (played status, unset) now navigate fresh to ensure correct JS state
-      - Debug: integration test suite bundled in Debug builds
+      - Feat: Greatly expand debug logging
+      - Feat: Add Diagnostics button
+      - Fix: Revert NavigateIfNeeded to webView.NavigateAndWait in GetGameFromURL sepcifically
