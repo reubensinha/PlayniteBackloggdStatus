@@ -4,7 +4,9 @@ using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -109,6 +111,52 @@ namespace BackloggdStatus
                     new Views.TestResultsDialog(results) { Owner = Application.Current.MainWindow }.ShowDialog();
             };
 #endif
+
+            Settings.OnCollectDiagnosticsRequested = () =>
+            {
+                string report = null;
+                PlayniteApi.Dialogs.ActivateGlobalProgress(args =>
+                {
+                    args.IsIndeterminate = true;
+                    var sb = new StringBuilder();
+                    sb.AppendLine("BackloggdStatus Diagnostics");
+                    sb.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                    sb.AppendLine();
+                    sb.AppendLine("=== Plugin ===");
+                    sb.AppendLine($"Version:       {typeof(BackloggdStatus).Assembly.GetName().Version}");
+                    sb.AppendLine($"SyncOnStartup: {Settings.Settings.SyncOnStartup}");
+                    sb.AppendLine($"IsDebugMode:   {Settings.Settings.IsDebugMode}");
+                    sb.AppendLine($"Mapped games:  {Settings.Settings.BackloggdGamesList.Count}");
+                    sb.AppendLine();
+                    sb.AppendLine("=== Playnite ===");
+                    sb.AppendLine($"Version: {PlayniteApi.ApplicationInfo.ApplicationVersion}");
+                    sb.AppendLine();
+                    sb.AppendLine("=== System ===");
+                    sb.AppendLine($"OS:         {Environment.OSVersion}");
+                    sb.AppendLine($".NET:       {Environment.Version}");
+                    sb.AppendLine($"64-bit OS:  {Environment.Is64BitOperatingSystem}");
+                    sb.AppendLine($"Processors: {Environment.ProcessorCount}");
+                    sb.AppendLine();
+                    sb.AppendLine("=== Log File ===");
+                    var logPath = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        "Playnite", "extensions.log");
+                    sb.AppendLine($"Expected path: {logPath}");
+                    sb.AppendLine($"Exists:        {File.Exists(logPath)}");
+                    sb.AppendLine();
+                    sb.AppendLine("=== Backloggd Connectivity ===");
+                    sb.AppendLine(backloggdAPI.RunConnectivityDiagnostics());
+                    report = sb.ToString();
+                }, new GlobalProgressOptions("Collecting diagnostics…", cancelable: false));
+
+                if (report != null)
+                {
+                    var outPath = Path.Combine(GetPluginUserDataPath(), $"diagnostics_{DateTime.Now:yyyy-MM-dd_HH-mm}.txt");
+                    File.WriteAllText(outPath, report);
+                    PlayniteApi.Dialogs.ShowMessage($"Diagnostics saved to:\n{outPath}", "BackloggdStatus");
+                    try { System.Diagnostics.Process.Start(GetPluginUserDataPath()); } catch { }
+                }
+            };
 
             Settings.LogFilePath = GetPluginUserDataPath();
             Settings.RefreshMappedGames(PlayniteApi);
