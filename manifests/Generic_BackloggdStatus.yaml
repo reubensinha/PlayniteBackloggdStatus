@@ -5,9 +5,9 @@ Packages:
     ReleaseDate: 2026-07-08
     PackageUrl: https://github.com/reubensinha/PlayniteBackloggdStatus/releases/download/v0.2.1/BackloggdStatus_v_0_2_1.pext
     Changelog:
-      - Feat: Greatly expand debug logging
-      - Feat: Add Diagnostics button
-      - Fix: Revert NavigateIfNeeded to webView.NavigateAndWait in GetGameFromURL sepcifically
+      - Greatly expand debug logging
+      - Add Diagnostics button
+      - Revert NavigateIfNeeded to webView.NavigateAndWait in GetGameFromURL sepcifically
   - Version: 0.2.0
     RequiredApiVersion: 6.11.0
     ReleaseDate: 2026-06-18
