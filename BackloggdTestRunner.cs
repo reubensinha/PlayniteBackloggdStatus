@@ -122,6 +122,48 @@ namespace BackloggdStatus
                     throw new Exception("GetGameFromURL returned null immediately after SearchGames — navigation was likely skipped");
             }));
 
+            results.Add(Run("Link flow: webView URL is game URL after GetGameFromURL (not search URL)", () =>
+            {
+                // Regression test for issue #7 root cause: Turbo Drive can cause NavigateAndWait
+                // to return before the game page loads, leaving webView on the search URL.
+                // If WaitForElement uses a selector present on search results (.logging-btns),
+                // it false-positives and GetPageSource returns search HTML instead of game HTML.
+                var found = api.SearchGames(TestSearchQuery);
+                if (found.Count == 0)
+                    throw new Exception("SearchGames returned no results — cannot exercise link flow");
+                string expectedUrl = found[0].Url.TrimEnd('/');
+                Log($"Requesting game URL: {expectedUrl}");
+                var game = api.GetGameFromURL(found[0].Url, Guid.Empty);
+                string actualUrl = (RunJs("window.location.href") ?? "").TrimEnd('/');
+                Log($"Actual webView URL after GetGameFromURL: {actualUrl}");
+                Log($"GetGameFromURL result: {(game == null ? "null" : $"'{game.BackloggdName}'")}");
+                if (!actualUrl.Equals(expectedUrl, StringComparison.OrdinalIgnoreCase))
+                    throw new Exception($"URL mismatch — GetGameFromURL read from '{actualUrl}' instead of '{expectedUrl}'. WaitForElement sentinel may be false-positiving on search results DOM.");
+                if (game == null)
+                    throw new Exception("GetGameFromURL returned null despite URL matching — title selector broken");
+            }));
+
+            results.Add(Run("Sentinel contract: GetGameFromURL WaitForElement sentinel (SelGamePageAwaiter) absent from search results", () =>
+            {
+                // Regression test for issue #7 root cause.
+                //
+                // GetGameFromURL uses WaitForElement(SelGamePageAwaiter) to detect when the game page
+                // has loaded. If that selector is present on the SEARCH RESULTS page, it will
+                // false-positive when Turbo Drive returns NavigateAndWait early — GetPageSource
+                // then returns search HTML and the title parse fails.
+                //
+                // This test reads BackloggdAPI.SelGamePageAwaiter (the live selector value) and asserts
+                // it is absent from the search DOM. To verify this test catches a regression:
+                // temporarily change SelGamePageAwaiter to ".logging-btns" and confirm the test fails.
+                api.SearchGames(TestSearchQuery);
+                string sentinel = BackloggdAPI.SelGamePageAwaiter;
+                var doc = new HtmlParser().Parse(GetCurrentPageSource());
+                var el  = doc.QuerySelector(sentinel);
+                Log($"SelGamePageAwaiter ('{sentinel}') on search results page: {(el != null ? $"PRESENT — '{el.TextContent.Trim()}'" : "absent (correct)")}");
+                if (el != null)
+                    throw new Exception($"SelGamePageAwaiter '{sentinel}' is present on search results — WaitForElement(SelGamePageAwaiter) in GetGameFromURL would false-positive when Turbo Drive returns NavigateAndWait early. Change SelGamePageAwaiter to a selector unique to game pages.");
+            }));
+
             // ── Timing tests ────────────────────────────────────────────────
             results.Add(Run("Timing: game page loads within WaitForElement window", () =>
             {

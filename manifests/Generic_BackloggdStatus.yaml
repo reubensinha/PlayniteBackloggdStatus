@@ -1,5 +1,11 @@
 AddonId: BackloggdStatus_228e1135-a326-4a8d-8ee9-edc1c61c0982
 Packages:
+  - Version: 0.2.2
+    RequiredApiVersion: 6.11.0
+    ReleaseDate: 2026-07-10
+    PackageUrl: https://github.com/reubensinha/PlayniteBackloggdStatus/releases/download/v0.2.2/BackloggdStatus_v_0_2_2.pext
+    Changelog:
+      - Fix issues when attempting to link games to Backloggd (issue #7)
   - Version: 0.2.1
     RequiredApiVersion: 6.11.0
     ReleaseDate: 2026-07-08
