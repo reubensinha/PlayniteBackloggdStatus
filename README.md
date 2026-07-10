@@ -64,6 +64,24 @@ Right-click a linked game and use the **BackloggdStatus** submenu to set or chan
 - Games must be linked to Backloggd manually; there is no automatic title matching.
 - Each status update makes a live request to Backloggd and takes approximately 3–6 seconds.
 
+## Development
+
+### Bumping the version
+
+Update these four places in sync when releasing a new version (`X.Y.Z`):
+
+| File | Field | Example value |
+| --- | --- | --- |
+| [Properties/AssemblyInfo.cs](Properties/AssemblyInfo.cs) | `AssemblyVersion` and `AssemblyFileVersion` | `0.2.2.0` |
+| [extension.yaml](extension.yaml) | `Version` | `0.2.2` |
+| [manifests/Generic_BackloggdStatus.yaml](manifests/Generic_BackloggdStatus.yaml) | New `Packages` entry (top of list) | see existing entries |
+
+After merging to master:
+
+1. Build Release with MSBuild.
+2. Zip the `bin/Release` output as `BackloggdStatus_v_X_Y_Z.pext` and upload it as a GitHub Release tagged `vX.Y.Z`.
+3. Update the `PackageUrl` in `Generic_BackloggdStatus.yaml` to match the release URL, then push to master.
+
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
