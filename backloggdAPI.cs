@@ -31,6 +31,13 @@ namespace BackloggdStatus
         // ── Page: https://backloggd.com/games/<slug>  (used by GetGameFromURL / ToggleStatusAsync) ──
         // <h1> inside the game title section (both mobile and desktop share .game-title-section)
         private const string SelGameTitle = ".game-title-section h1";
+
+        // WaitForElement sentinel in GetGameFromURL — signals that the game page has loaded.
+        // Must be absent from search results pages: if it is present there, WaitForElement will
+        // return true while the webView DOM still contains search HTML, causing GetPageSource to
+        // read the wrong page (issue #7 root cause). Kept separate from SelGameTitle so the
+        // sentinel can be changed independently and so BackloggdTestRunner can read and validate it.
+        internal const string SelGamePageAwaiter = SelGameTitle;
         
         // Elements with class "btn-play-fill" — status buttons that are visually active.
         // Each element's className (or play_type attribute on the first one) identifies the
@@ -170,12 +177,12 @@ namespace BackloggdStatus
             logger.Debug($"GetGameFromURL: navigating to {backloggdURL}");
             webView.NavigateAndWait(backloggdURL);
 
-            // Wait for the button row to exist — .logging-btns is always present regardless of
-            // whether any status is active (.btn-play-fill only exists when a status IS set)
-            bool buttonsReady = WaitForElement(".logging-btns");
-            logger.Debug($"GetGameFromURL: WaitForElement('.logging-btns') = {buttonsReady}");
-            if (!buttonsReady)
-                logger.Warn("GetGameFromURL: status buttons not found after polling — page may have changed structure.");
+            // Wait for the game page to load. SelGamePageAwaiter must be absent from search
+            // results pages — see its declaration for the full constraint (issue #7).
+            bool elementReady = WaitForElement(SelGamePageAwaiter);
+            logger.Debug($"GetGameFromURL: WaitForElement('{SelGamePageAwaiter}') = {elementReady}");
+            if (!elementReady)
+                logger.Warn("GetGameFromURL: game page did not load within WaitForElement timeout — page may not have loaded.");
 
             var parser     = new HtmlParser();
             var pageSource = webView.GetPageSource();
