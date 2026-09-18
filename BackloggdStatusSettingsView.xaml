@@ -3,8 +3,27 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             xmlns:local="clr-namespace:BackloggdStatus"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="700">
+    <UserControl.Resources>
+        <ObjectDataProvider x:Key="StatusMappingActionValues" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="local:StatusMappingAction"/>
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+        <ObjectDataProvider x:Key="TriStateValues" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="local:TriState"/>
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+        <ObjectDataProvider x:Key="PlayedTargetStateValues" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="local:PlayedTargetState"/>
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+    </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="12">
 
@@ -69,6 +88,115 @@
                         </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
+            </GroupBox>
+
+            <!-- ── Status Mapping ───────────────────────────────────────── -->
+            <GroupBox Header="Status Mapping" Margin="0,0,0,12">
+                <StackPanel Margin="8">
+                    <TextBlock Text="Configure what each dimension should become on Backloggd when a game's Completion Status changes. Leave a column as &quot;Unchanged&quot; to leave that dimension alone."
+                               TextWrapping="Wrap" Opacity="0.8" Margin="0,0,0,8"/>
+                    <CheckBox Content="Automatically apply mappings when Completion Status changes"
+                              IsChecked="{Binding Settings.AutoApplyStatusMappings}"
+                              Margin="0,0,0,8"/>
+                    <DataGrid ItemsSource="{Binding StatusMappingRows}"
+                              AutoGenerateColumns="False"
+                              HeadersVisibility="Column"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              SelectionMode="Single"
+                              MinHeight="100"
+                              MaxHeight="260">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Playnite Completion Status"
+                                                Binding="{Binding CompletionStatusName}"
+                                                IsReadOnly="True"
+                                                Width="*"/>
+                            <DataGridTemplateColumn Header="Playing" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding Source={StaticResource TriStateValues}}"
+                                                  SelectedItem="{Binding Playing, Mode=OneWay}"
+                                                  Tag="Playing"
+                                                  SelectionChanged="TriState_SelectionChanged"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Backlog" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding Source={StaticResource TriStateValues}}"
+                                                  SelectedItem="{Binding Backlog, Mode=OneWay}"
+                                                  Tag="Backlog"
+                                                  SelectionChanged="TriState_SelectionChanged"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Wishlist" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding Source={StaticResource TriStateValues}}"
+                                                  SelectedItem="{Binding Wishlist, Mode=OneWay}"
+                                                  Tag="Wishlist"
+                                                  SelectionChanged="TriState_SelectionChanged"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Played" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding Source={StaticResource PlayedTargetStateValues}}"
+                                                  SelectedItem="{Binding Played, Mode=OneWay}"
+                                                  SelectionChanged="PlayedTarget_SelectionChanged"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <Button Content="Apply Mappings Now"
+                            Width="140"
+                            HorizontalAlignment="Left"
+                            Margin="0,8,0,0"
+                            Click="ApplyStatusMappings_Click"/>
+                </StackPanel>
+            </GroupBox>
+
+            <!-- ── Pull from Backloggd ──────────────────────────────────── -->
+            <GroupBox Header="Pull from Backloggd" Margin="0,0,0,12">
+                <StackPanel Margin="8">
+                    <TextBlock Text="Set a game's Playnite Completion Status based on its current Backloggd status. Rows left as &quot;(No change)&quot; are ignored."
+                               TextWrapping="Wrap" Opacity="0.8" Margin="0,0,0,8"/>
+                    <DataGrid ItemsSource="{Binding PullStatusMappingRows}"
+                              AutoGenerateColumns="False"
+                              HeadersVisibility="Column"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              SelectionMode="Single"
+                              MinHeight="100"
+                              MaxHeight="260">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Backloggd Status"
+                                                Binding="{Binding BackloggdSourceStatus}"
+                                                IsReadOnly="True"
+                                                Width="*"/>
+                            <DataGridTemplateColumn Header="Playnite Completion Status" Width="180">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding DataContext.AvailableCompletionStatuses, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  DisplayMemberPath="Name"
+                                                  SelectedValuePath="Id"
+                                                  SelectedValue="{Binding TargetCompletionStatusId, Mode=OneWay}"
+                                                  SelectionChanged="PullMappingTarget_SelectionChanged"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <Button Content="Pull from Backloggd Now"
+                            Width="160"
+                            HorizontalAlignment="Left"
+                            Margin="0,8,0,0"
+                            Click="PullFromBackloggd_Click"/>
+                </StackPanel>
             </GroupBox>
 
             <!-- ── Sync Options ─────────────────────────────────────────── -->
