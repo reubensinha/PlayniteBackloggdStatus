@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace BackloggdStatus
@@ -49,6 +50,82 @@ namespace BackloggdStatus
         public List<TestResult> RunAll()
         {
             var results = new List<TestResult>();
+
+            // ── Status mapping logic tests (pure — no network) ──────────────
+            results.Add(Run("Pull priority: Played sub-status beats Playing/Backlog/Wishlist", () =>
+            {
+                var g = new BackloggdGame { Playing = true, Backlog = true, Wishlist = true, Played = PlayedStatus.Retired };
+                var resolved = StatusMappingResolver.ResolvePullSourceStatus(g);
+                Log($"Resolved: {resolved}");
+                if (resolved != StatusMappingAction.Retired)
+                    throw new Exception($"Expected Retired to win, got {resolved}");
+            }));
+
+            results.Add(Run("Pull priority: Playing beats Backlog/Wishlist when no Played status", () =>
+            {
+                var g = new BackloggdGame { Playing = true, Backlog = true, Wishlist = true };
+                var resolved = StatusMappingResolver.ResolvePullSourceStatus(g);
+                Log($"Resolved: {resolved}");
+                if (resolved != StatusMappingAction.Playing)
+                    throw new Exception($"Expected Playing to win, got {resolved}");
+            }));
+
+            results.Add(Run("Pull priority: Backlog beats Wishlist; no active status returns null", () =>
+            {
+                var backlogOnly = StatusMappingResolver.ResolvePullSourceStatus(new BackloggdGame { Backlog = true, Wishlist = true });
+                Log($"Backlog+Wishlist resolved: {backlogOnly}");
+                if (backlogOnly != StatusMappingAction.Backlog)
+                    throw new Exception($"Expected Backlog, got {backlogOnly}");
+
+                var none = StatusMappingResolver.ResolvePullSourceStatus(new BackloggdGame());
+                Log($"No active status resolved: {none?.ToString() ?? "null"}");
+                if (none != null)
+                    throw new Exception($"Expected null for no active status, got {none}");
+            }));
+
+            results.Add(Run("ComputeOperations: sets Playing and clears Backlog when mapped", () =>
+            {
+                var mapping = new CompletionStatusMapping { Playing = TriState.On, Backlog = TriState.Off };
+                var ops = StatusMappingResolver.ComputeOperations(new BackloggdGame { Backlog = true }, mapping);
+                Log($"Ops: {string.Join(", ", ops.Select(o => o.Status))}");
+                if (ops.Count != 2 || !ops.Any(o => o.Status == "Playing") || !ops.Any(o => o.Status == "Backlog"))
+                    throw new Exception($"Expected 2 ops (Playing, Backlog), got {ops.Count}");
+            }));
+
+            results.Add(Run("ComputeOperations: no-op when game already matches the mapping", () =>
+            {
+                var mapping = new CompletionStatusMapping { Playing = TriState.On, Backlog = TriState.Off };
+                var ops = StatusMappingResolver.ComputeOperations(new BackloggdGame { Playing = true }, mapping);
+                Log($"Ops: {ops.Count}");
+                if (ops.Count != 0)
+                    throw new Exception($"Expected 0 ops, got {ops.Count}");
+            }));
+
+            results.Add(Run("ComputeOperations: Played target respects playedAlreadySet", () =>
+            {
+                var mapping = new CompletionStatusMapping { Played = PlayedTargetState.Completed };
+
+                var fromUnset = StatusMappingResolver.ComputeOperations(new BackloggdGame(), mapping);
+                if (fromUnset.Count != 1 || fromUnset[0].PlayedAlreadySet)
+                    throw new Exception("Expected 1 op with PlayedAlreadySet=false when Played was unset");
+
+                var fromOtherPlayed = StatusMappingResolver.ComputeOperations(new BackloggdGame { Played = PlayedStatus.Retired }, mapping);
+                if (fromOtherPlayed.Count != 1 || !fromOtherPlayed[0].PlayedAlreadySet)
+                    throw new Exception("Expected 1 op with PlayedAlreadySet=true when Played was already Retired");
+
+                var alreadyCompleted = StatusMappingResolver.ComputeOperations(new BackloggdGame { Played = PlayedStatus.Completed }, mapping);
+                if (alreadyCompleted.Count != 0)
+                    throw new Exception("Expected 0 ops when already Completed");
+                Log("All Played-target checks passed");
+            }));
+
+            results.Add(Run("IsNoOpMapping: true only when every dimension is Unchanged", () =>
+            {
+                if (!StatusMappingResolver.IsNoOpMapping(new CompletionStatusMapping()))
+                    throw new Exception("Freshly-defaulted mapping should be a no-op");
+                if (StatusMappingResolver.IsNoOpMapping(new CompletionStatusMapping { Wishlist = TriState.Off }))
+                    throw new Exception("Mapping with one non-Unchanged field should not be a no-op");
+            }));
 
             // ── Selector tests (read-only) ──────────────────────────────────
             results.Add(Run("Login: #mobile-user-nav selector finds user nav", () =>
