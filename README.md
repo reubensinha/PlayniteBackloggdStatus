@@ -17,6 +17,7 @@ A [Playnite](https://playnite.link/) extension that lets you view and update you
 - **Refresh Status** for a single game, or **Sync All** to pull current Backloggd state for your entire library
 - Active statuses are marked with ✓ in the context menu
 - Optional auto-sync on Playnite startup
+- **Status Mapping**: Map Playnite's built-in completion Status to Backloggd's
 
 ## Requirements
 
@@ -50,6 +51,12 @@ Right-click any game in your library and choose **BackloggdStatus → Link to Ba
 
 Right-click a linked game and use the **BackloggdStatus** submenu to set or change its status. Status changes are applied to Backloggd in real time (allow a few seconds for each change).
 
+## Playnite Completion status syncing
+
+Open the extension settings and enable **Status Mapping**. Use the table to pick what each Playnite Completion Status should set on Backloggd — for example, map "Playing" to `Playing: On`, `Backlog: Unchanged`, `Wishlist: Off`. Once configured, changing a linked game's Completion Status in Playnite automatically updates the Backloggd Status (this can be turned off), or you can review and apply it to your whole library at once with **Apply Mappings Now**.
+
+To sync the other direction, use **Pull from Backloggd**: map each Backloggd status to a Completion Status, then click **Pull from Backloggd Now** to update Playnite from your current Backloggd state.
+
 ## Settings
 
 | Setting | Description |
@@ -58,11 +65,17 @@ Right-click a linked game and use the **BackloggdStatus** submenu to set or chan
 | Sync All | Refresh Backloggd status for every linked game |
 | Sync on Startup | Automatically sync all games when Playnite opens |
 | Mapped Games | List of all linked games with their current status |
+| Status Mapping | Per Completion Status, set the desired Playing / Backlog / Wishlist / Played state on Backloggd |
+| Automatically apply mappings | When enabled, pushes the mapped status to Backloggd as soon as a linked game's Completion Status changes |
+| Apply Mappings Now | Previews, then pushes, status mappings to every linked game in one pass |
+| Pull from Backloggd | Map each Backloggd status to a Playnite Completion Status |
+| Pull from Backloggd Now | Previews, then pulls, Backloggd status into Playnite's Completion Status for every linked game |
+| Enable debug logging | Also shows a before/after report after Apply Mappings Now / Pull from Backloggd Now completes |
 
 ## Known Limitations
 
 - Games must be linked to Backloggd manually; there is no automatic title matching.
-- Each status update makes a live request to Backloggd and takes approximately 3–6 seconds.
+- Each status update makes a live request to Backloggd and takes approximately 3–6 seconds; applying a mapping that changes multiple dimensions (Playing/Backlog/Wishlist/Played) makes one request per dimension. So large libraries can take a long time when applying changes.
 
 ## Development
 
@@ -84,7 +97,7 @@ After merging to master:
 
 ## Contributing
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+Pull requests are welcome.
 
 ## License
 
