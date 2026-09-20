@@ -5,8 +5,8 @@ Packages:
     ReleaseDate: 2026-09-19
     PackageUrl: https://github.com/reubensinha/PlayniteBackloggdStatus/releases/download/v0.3.0/BackloggdStatus_v_0_3_0.pext
     Changelog:
-      - Add Status Mapping: configure Playing/Backlog/Wishlist/Played per Completion Status, applied automatically when a game's status changes or on demand
-      - Add Pull from Backloggd: map each Backloggd status to a Completion Status and pull it into your library on demand
+      - Add Status Mapping, configure Playing/Backlog/Wishlist/Played per Completion Status, applied automatically when a game's status changes or on demand
+      - Add Pull from Backloggd, map each Backloggd status to a Completion Status and pull it into your library on demand
   - Version: 0.2.2
     RequiredApiVersion: 6.11.0
     ReleaseDate: 2026-07-10
