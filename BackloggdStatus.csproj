@@ -51,9 +51,16 @@
     <Compile Include="BackloggdStatusSettingsView.xaml.cs">
       <DependentUpon>BackloggdStatusSettingsView.xaml</DependentUpon>
     </Compile>
+    <Compile Include="StatusMappingResolver.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Views\GameSearchDialog.xaml.cs">
       <DependentUpon>GameSearchDialog.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\StatusMappingConfirmDialog.xaml.cs">
+      <DependentUpon>StatusMappingConfirmDialog.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\StatusMappingReportDialog.xaml.cs">
+      <DependentUpon>StatusMappingReportDialog.xaml</DependentUpon>
     </Compile>
     <!-- Debug-only test infrastructure -->
     <Compile Include="BackloggdTestRunner.cs" Condition="'$(Configuration)' == 'Debug'" />
@@ -81,6 +88,14 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Views\GameSearchDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\StatusMappingConfirmDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\StatusMappingReportDialog.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

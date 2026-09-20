@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,6 +24,15 @@ namespace BackloggdStatus
 
         internal static bool loggedIn;
 
+        private readonly SemaphoreSlim autoStatusSyncLock = new SemaphoreSlim(1, 1);
+
+        // Games whose CompletionStatusId was just written by a pull operation — the resulting
+        // ItemUpdated event must be ignored by the automatic push handler, or a pull would
+        // immediately trigger a push back to Backloggd (possibly undoing the pull if the push
+        // and pull mappings for that status aren't exact inverses).
+        private readonly HashSet<Guid> pullSuppressedGameIds = new HashSet<Guid>();
+        private readonly object pullSuppressLock = new object();
+
         public BackloggdStatus(IPlayniteAPI api) : base(api)
         {
             logger.Debug("BackloggdStatus constructor called.");
@@ -38,6 +48,8 @@ namespace BackloggdStatus
 
             backloggdAPI.IsUserLoggedIn();
 
+            api.Database.Games.ItemUpdated += Games_ItemUpdated;
+
             logger.Info("BackloggdStatus initialized.");
         }
 
@@ -51,10 +63,62 @@ namespace BackloggdStatus
                 Task.Run(() => SyncAll());
         }
 
+        public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+        {
+            PlayniteApi.Database.Games.ItemUpdated -= Games_ItemUpdated;
+        }
+
         public override void OnGameUninstalled(OnGameUninstalledEventArgs args)
         {
             Settings.Settings.BackloggdGamesList.RemoveAll(x => x.GameId == args.Game.Id);
             SavePluginSettings(Settings.Settings);
+        }
+
+        private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
+        {
+            if (!loggedIn || !Settings.Settings.AutoApplyStatusMappings) return;
+
+            var pending = new List<PendingMapping>();
+            foreach (var u in e.UpdatedItems)
+            {
+                if (u.OldData.CompletionStatusId == u.NewData.CompletionStatusId)
+                    continue; // ItemUpdateEvent<Game> has no changed-field list — diff Old/New directly
+
+                lock (pullSuppressLock)
+                {
+                    if (pullSuppressedGameIds.Contains(u.NewData.Id))
+                        continue; // this change came from our own pull — don't push it back
+                }
+
+                var bg = Settings.Settings.BackloggdGamesList.FirstOrDefault(x => x.GameId == u.NewData.Id);
+                if (bg == null || string.IsNullOrEmpty(bg.BackloggdUrl))
+                    continue; // only linked games
+
+                var mapping = Settings.Settings.StatusMappings
+                    .FirstOrDefault(m => m.CompletionStatusId == u.NewData.CompletionStatusId);
+                if (mapping == null || StatusMappingResolver.IsNoOpMapping(mapping))
+                    continue; // unmapped — opt-in only
+
+                pending.Add(new PendingMapping { Game = bg, Mapping = mapping });
+            }
+            if (pending.Count == 0) return;
+
+            Task.Run(async () =>
+            {
+                await autoStatusSyncLock.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    foreach (var p in pending)
+                        await ApplyStatusMappingAsync(p.Game, p.Mapping).ConfigureAwait(false);
+                }
+                finally { autoStatusSyncLock.Release(); }
+            });
+        }
+
+        private class PendingMapping
+        {
+            public BackloggdGame Game;
+            public CompletionStatusMapping Mapping;
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -88,6 +152,74 @@ namespace BackloggdStatus
             Settings.OnSyncAllRequested = () => PlayniteApi.Dialogs.ActivateGlobalProgress(
                 args => SyncAll(args),
                 new GlobalProgressOptions("Syncing all games…", cancelable: true));
+
+            Settings.OnApplyStatusMappingsRequested = () =>
+            {
+                var candidates = BuildPushCandidates();
+
+                var confirm = new Views.StatusMappingConfirmDialog(
+                    "Apply Status Mappings",
+                    "Playnite Game", "Current Backloggd Status", "New Backloggd Status",
+                    candidates.Select(c => new Views.StatusMappingPreviewRow
+                    {
+                        GameName      = c.Game.BackloggdName,
+                        CurrentStatus = BackloggdStatusSettingsViewModel.BuildStatusSummary(c.Game),
+                        NewStatus     = BackloggdStatusSettingsViewModel.BuildStatusSummary(SimulateApply(c.Game, c.Mapping))
+                    }).ToList())
+                { Owner = Application.Current.MainWindow };
+
+                if (confirm.ShowDialog() != true) return;
+
+                List<Views.StatusMappingReportRow> report = null;
+                PlayniteApi.Dialogs.ActivateGlobalProgress(
+                    async args => report = await ApplyPushCandidatesAsync(candidates, args),
+                    new GlobalProgressOptions("Applying status mappings…", cancelable: true));
+
+                if (Settings.Settings.IsDebugMode && report != null && report.Count > 0)
+                {
+                    new Views.StatusMappingReportDialog(
+                        "Status Mapping Report — Push",
+                        "Backloggd Game", "Old Status", "New Status", report)
+                    { Owner = Application.Current.MainWindow }.ShowDialog();
+                }
+            };
+
+            Settings.OnPullFromBackloggdRequested = () =>
+            {
+                List<PullCandidate> candidates = null;
+                PlayniteApi.Dialogs.ActivateGlobalProgress(
+                    args => candidates = BuildPullCandidates(args),
+                    new GlobalProgressOptions("Checking Backloggd status…", cancelable: true));
+
+                if (candidates == null || candidates.Count == 0)
+                {
+                    PlayniteApi.Dialogs.ShowMessage("No status changes to pull.", "BackloggdStatus");
+                    return;
+                }
+
+                var confirm = new Views.StatusMappingConfirmDialog(
+                    "Pull From Backloggd",
+                    "Backloggd Game", "Current Playnite Status", "New Playnite Status",
+                    candidates.Select(c => new Views.StatusMappingPreviewRow
+                    {
+                        GameName      = c.RefreshedBg.BackloggdName,
+                        CurrentStatus = c.OldCompletionStatusName,
+                        NewStatus     = c.NewCompletionStatusName
+                    }).ToList())
+                { Owner = Application.Current.MainWindow };
+
+                if (confirm.ShowDialog() != true) return;
+
+                var report = ApplyPullCandidates(candidates);
+
+                if (Settings.Settings.IsDebugMode && report.Count > 0)
+                {
+                    new Views.StatusMappingReportDialog(
+                        "Status Mapping Report — Pull",
+                        "Backloggd Game", "Old Playnite Status", "New Playnite Status", report)
+                    { Owner = Application.Current.MainWindow }.ShowDialog();
+                }
+            };
 
             Settings.OnOpenLogRequested = () =>
             {
@@ -160,6 +292,8 @@ namespace BackloggdStatus
 
             Settings.LogFilePath = GetPluginUserDataPath();
             Settings.RefreshMappedGames(PlayniteApi);
+            Settings.RefreshStatusMappings(PlayniteApi);
+            Settings.RefreshPullStatusMappings(PlayniteApi);
 
             var view = new BackloggdStatusSettingsView();
             view.DataContext = Settings;
@@ -475,6 +609,198 @@ namespace BackloggdStatus
                     SavePluginSettings(Settings.Settings);
                 }
             }
+        }
+
+        private async Task ApplyStatusMappingAsync(BackloggdGame bg, CompletionStatusMapping mapping)
+        {
+            var ops = StatusMappingResolver.ComputeOperations(bg, mapping);
+            if (ops.Count == 0)
+            {
+                logger.Debug($"Skipping status mapping push for '{bg.BackloggdName}' — already matches the mapped state.");
+                return;
+            }
+
+            try
+            {
+                foreach (var op in ops)
+                    await backloggdAPI.ToggleStatusAsync(bg.BackloggdUrl, op.Status, op.PlayedAlreadySet).ConfigureAwait(false);
+
+                var updated = backloggdAPI.RefreshStatus(bg);
+                ReplaceGame(bg, updated);
+                logger.Info($"Synced completion status change for '{bg.BackloggdName}' -> {ops.Count} operation(s) applied.");
+            }
+            catch (Exception ex)
+            {
+                logger.Error($"Status mapping push failed for GameId={bg.GameId}: {ex.Message}");
+            }
+        }
+
+        // Returns a copy of bg with Playing/Backlog/Wishlist/Played updated per mapping's
+        // non-Unchanged dimensions — used to preview the resulting state without touching the network.
+        private static BackloggdGame SimulateApply(BackloggdGame bg, CompletionStatusMapping mapping)
+        {
+            var simulated = new BackloggdGame
+            {
+                GameId = bg.GameId,
+                BackloggdName = bg.BackloggdName,
+                BackloggdUrl = bg.BackloggdUrl,
+                Playing = mapping.Playing == TriState.Unchanged ? bg.Playing : mapping.Playing == TriState.On,
+                Backlog = mapping.Backlog == TriState.Unchanged ? bg.Backlog : mapping.Backlog == TriState.On,
+                Wishlist = mapping.Wishlist == TriState.Unchanged ? bg.Wishlist : mapping.Wishlist == TriState.On,
+                Played = bg.Played
+            };
+
+            switch (mapping.Played)
+            {
+                case PlayedTargetState.Unchanged: break;
+                case PlayedTargetState.Clear: simulated.Played = null; break;
+                default: simulated.Played = (PlayedStatus)Enum.Parse(typeof(PlayedStatus), mapping.Played.ToString()); break;
+            }
+
+            return simulated;
+        }
+
+        // ── Push: "Apply Status Mappings Now" — build candidates, then apply on confirmation ──
+
+        private List<PendingMapping> BuildPushCandidates()
+        {
+            var candidates = new List<PendingMapping>();
+            foreach (var bg in Settings.Settings.BackloggdGamesList)
+            {
+                var playniteGame = PlayniteApi.Database.Games.FirstOrDefault(g => g.Id == bg.GameId);
+                if (playniteGame == null) continue;
+
+                var mapping = Settings.Settings.StatusMappings
+                    .FirstOrDefault(m => m.CompletionStatusId == playniteGame.CompletionStatusId);
+                if (mapping == null || StatusMappingResolver.IsNoOpMapping(mapping)) continue;
+                if (StatusMappingResolver.ComputeOperations(bg, mapping).Count == 0) continue;
+
+                candidates.Add(new PendingMapping { Game = bg, Mapping = mapping });
+            }
+            return candidates;
+        }
+
+        private async Task<List<Views.StatusMappingReportRow>> ApplyPushCandidatesAsync(List<PendingMapping> candidates, GlobalProgressActionArgs args)
+        {
+            var report = new List<Views.StatusMappingReportRow>();
+
+            await autoStatusSyncLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                args.ProgressMaxValue = candidates.Count;
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    if (args.CancelToken.IsCancellationRequested) break;
+                    var bg = candidates[i].Game;
+                    var mapping = candidates[i].Mapping;
+                    args.CurrentProgressValue = i + 1;
+                    args.Text = $"Applying mapping to {bg.BackloggdName} ({i + 1}/{candidates.Count})…";
+
+                    string oldSummary = BackloggdStatusSettingsViewModel.BuildStatusSummary(bg);
+                    await ApplyStatusMappingAsync(bg, mapping).ConfigureAwait(false);
+                    string newSummary = BackloggdStatusSettingsViewModel.BuildStatusSummary(bg);
+
+                    report.Add(new Views.StatusMappingReportRow
+                    {
+                        GameName  = bg.BackloggdName,
+                        OldStatus = oldSummary,
+                        NewStatus = newSummary,
+                        Changed   = oldSummary != newSummary
+                    });
+                }
+                logger.Info($"Apply Status Mappings complete — {report.Count} game(s) processed.");
+            }
+            finally { autoStatusSyncLock.Release(); }
+
+            return report;
+        }
+
+        // ── Pull: "Pull from Backloggd Now" — build candidates, then apply on confirmation ──
+
+        private class PullCandidate
+        {
+            public BackloggdGame OriginalBg;  // the object currently stored in BackloggdGamesList — needed by ReplaceGame to find it
+            public BackloggdGame RefreshedBg; // freshly re-scraped state from backloggdAPI.RefreshStatus
+            public Game PlayniteGame;
+            public Guid TargetCompletionStatusId;
+            public string OldCompletionStatusName;
+            public string NewCompletionStatusName;
+        }
+
+        private List<PullCandidate> BuildPullCandidates(GlobalProgressActionArgs args)
+        {
+            var candidates = new List<PullCandidate>();
+            var games = Settings.Settings.BackloggdGamesList.ToList();
+            args.ProgressMaxValue = games.Count;
+
+            for (int i = 0; i < games.Count; i++)
+            {
+                if (args.CancelToken.IsCancellationRequested) break;
+                var bg = games[i];
+                args.CurrentProgressValue = i + 1;
+                args.Text = $"Checking {bg.BackloggdName} ({i + 1}/{games.Count})…";
+
+                var playniteGame = PlayniteApi.Database.Games.FirstOrDefault(g => g.Id == bg.GameId);
+                if (playniteGame == null || string.IsNullOrEmpty(bg.BackloggdUrl)) continue;
+
+                var refreshed = backloggdAPI.RefreshStatus(bg);
+                if (refreshed == null) continue;
+
+                var sourceStatus = StatusMappingResolver.ResolvePullSourceStatus(refreshed);
+                if (sourceStatus == null) continue;
+
+                var mapping = Settings.Settings.PullStatusMappings
+                    .FirstOrDefault(m => m.BackloggdSourceStatus == sourceStatus.Value);
+                if (mapping == null || mapping.TargetCompletionStatusId == null) continue;
+                if (mapping.TargetCompletionStatusId.Value == playniteGame.CompletionStatusId) continue;
+
+                string oldName = PlayniteApi.Database.CompletionStatuses
+                    .FirstOrDefault(s => s.Id == playniteGame.CompletionStatusId)?.Name ?? "(none)";
+                string newName = PlayniteApi.Database.CompletionStatuses
+                    .FirstOrDefault(s => s.Id == mapping.TargetCompletionStatusId.Value)?.Name ?? "(unknown)";
+
+                candidates.Add(new PullCandidate
+                {
+                    OriginalBg = bg,
+                    RefreshedBg = refreshed,
+                    PlayniteGame = playniteGame,
+                    TargetCompletionStatusId = mapping.TargetCompletionStatusId.Value,
+                    OldCompletionStatusName = oldName,
+                    NewCompletionStatusName = newName
+                });
+            }
+            return candidates;
+        }
+
+        private List<Views.StatusMappingReportRow> ApplyPullCandidates(List<PullCandidate> candidates)
+        {
+            var report = new List<Views.StatusMappingReportRow>();
+
+            foreach (var candidate in candidates)
+            {
+                lock (pullSuppressLock) { pullSuppressedGameIds.Add(candidate.PlayniteGame.Id); }
+                try
+                {
+                    candidate.PlayniteGame.CompletionStatusId = candidate.TargetCompletionStatusId;
+                    PlayniteApi.Database.Games.Update(candidate.PlayniteGame);
+                    ReplaceGame(candidate.OriginalBg, candidate.RefreshedBg);
+                }
+                finally
+                {
+                    lock (pullSuppressLock) { pullSuppressedGameIds.Remove(candidate.PlayniteGame.Id); }
+                }
+
+                report.Add(new Views.StatusMappingReportRow
+                {
+                    GameName  = candidate.RefreshedBg.BackloggdName,
+                    OldStatus = candidate.OldCompletionStatusName,
+                    NewStatus = candidate.NewCompletionStatusName,
+                    Changed   = true
+                });
+            }
+
+            logger.Info($"Pull From Backloggd complete — {report.Count} game(s) updated.");
+            return report;
         }
 
         private static string Check(bool active) => active ? "✓ " : "  ";
